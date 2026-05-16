@@ -7,7 +7,7 @@ plugins {
 
 korge {
     id = "com.sample.demo"
-    name = "tr.io"
+    name = "Trillium"
 
     orientation = Orientation.PORTRAIT
 

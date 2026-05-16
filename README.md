@@ -1,4 +1,4 @@
-# tr.io (Trillium)
+# Trillium
 
 A powers-of-three merge puzzle game built with the [KorGE](https://korge.org/) Kotlin
 Multiplatform game engine. Drag-select chains of equal-value blocks to merge them upward, form

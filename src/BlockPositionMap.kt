@@ -6,7 +6,7 @@ data class Position(val x: Int, val y: Int) {
     init {
         require(x >= 0)
         require(x < gridColumns)
-        require(y >= -1)
+        require(y >= 0)
         require(y < gridRows)
     }
 

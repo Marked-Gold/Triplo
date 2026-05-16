@@ -603,7 +603,7 @@ fun Container.showRestart(onRestart: () -> Unit, restartBitmap: Bitmap, shareBit
             Napier.d("SCORE: $scoreString")
             Napier.d("SCORE EMOJI: $scoreEmojiString")
 
-            val clipboardContent = scoreEmojiString + "\n" + gridString + "https://playTr.io"
+            val clipboardContent = scoreEmojiString + "\n" + gridString + "https://playtrillium.com"
 
             Napier.d("Clipboard Content:\n $clipboardContent")
             // val clipboard = views.clipboard
