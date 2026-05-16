@@ -1,4 +1,4 @@
-import com.soywiz.korim.color.*
+import korlibs.image.color.*
 
 val patternBorderOptions: Array<RGBA> = arrayOf(
     Colors["#F26419"],

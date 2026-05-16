@@ -1,5 +1,5 @@
-import com.soywiz.korim.color.Colors
-import com.soywiz.korim.color.RGBA
+import korlibs.image.color.Colors
+import korlibs.image.color.RGBA
 import kotlin.math.abs
 import kotlin.math.max
 

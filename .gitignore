@@ -9,3 +9,12 @@
 .externalNativeBuild
 .cxx
 local.properties
+# KorGE 6 / Kotlin build artifacts
+/.kotlin
+/.korge
+/deps
+/modules
+/bundles
+*.hprof
+*.log
+korge.keystore

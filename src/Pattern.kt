@@ -1,7 +1,6 @@
 import Number.*
-import com.soywiz.korge.view.*
-import com.soywiz.korim.color.*
-import io.github.aakira.napier.Napier
+import korlibs.korge.view.*
+import korlibs.image.color.*
 
 enum class Pattern() {
     UNDETERMINED,

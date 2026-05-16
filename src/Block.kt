@@ -1,8 +1,8 @@
 import Number.*
-import com.soywiz.klogger.AnsiEscape
-import com.soywiz.korge.view.*
-import com.soywiz.korim.color.*
-import io.github.aakira.napier.Napier
+import korlibs.korge.view.*
+import korlibs.korge.view.align.*
+import korlibs.image.color.*
+import korlibs.math.geom.*
 import kotlin.random.Random
 
 
@@ -44,8 +44,8 @@ enum class BlockSelection () {
 data class Block(val id: Int, var number: Number, var selection: BlockSelection = BlockSelection.UNSELECTED) : Container() {
 
     init {
-        roundRect(cellSize, cellSize, 5, fill = number.color, stroke = selection.colorBorder(number), strokeThickness = 3.5)
-        roundRect(cellSize, cellSize, 5, fill = selection.colorContent(number).withA(80),  )
+        roundRect(Size(cellSize, cellSize), RectCorners(5), fill = number.color, stroke = selection.colorBorder(number), strokeThickness = 3.5)
+        roundRect(Size(cellSize, cellSize), RectCorners(5), fill = selection.colorContent(number).withA(80))
 
         text(number.display, textSizeFor(number), number.TextColor, font).apply {
             when (number.ordinal) {

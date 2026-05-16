@@ -1,14 +1,9 @@
-import com.soywiz.klock.seconds
-import com.soywiz.korge.animate.Animator
-import com.soywiz.korge.animate.animateSequence
-import com.soywiz.korge.tween.get
-import com.soywiz.korge.view.Stage
-import com.soywiz.korge.view.View
-import com.soywiz.korge.view.position
-import com.soywiz.korge.view.scale
-import com.soywiz.korio.async.launchImmediately
-import com.soywiz.korma.interpolation.Easing
-import io.github.aakira.napier.Napier
+import korlibs.time.*
+import korlibs.korge.animate.*
+import korlibs.korge.tween.*
+import korlibs.korge.view.*
+import korlibs.io.async.launchImmediately
+import korlibs.math.interpolation.*
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -16,34 +11,33 @@ import kotlin.random.Random
 fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position>>>) =
     launchImmediately {
         startAnimating()
-        animateSequence {
+        animate {
             parallel {
                 Napier.v("Animating the blocks merging together")
                 mergeMap.forEach { (headPosition, valueAndMergePositions) ->
                     val mergePositions = valueAndMergePositions.second
                     mergePositions.forEach { position ->
                         Napier.d("Moving block from ${position.log()} to new block")
-                        blocksMap[position]!!.moveTo(
+                        moveTo(
+                            blocksMap[position]!!,
                             getXFromPosition(headPosition) + cellSize / 2,
                             getYFromPosition(headPosition) + cellSize / 2,
                             0.15.seconds,
                             Easing.LINEAR,
                         )
-                        blocksMap[position]!!.scaleTo(0, 0, 0.15.seconds, Easing.LINEAR)
+                        scaleTo(blocksMap[position]!!, 0, 0, 0.15.seconds, Easing.LINEAR)
                     }
                 }
             }
             block {
                 Napier.v("Animating deletion of previous blocks and adding new upgraded block")
-                parallel {
-                    mergeMap.forEach { (headPosition, valueAndMergePositions) ->
-                        valueAndMergePositions.second.forEach { position -> deleteBlock(blocksMap[position]!!) }
-                        val value = valueAndMergePositions.first
-                        val newBlock = blocksMap[headPosition]!!.updateNumber(value).unselect().copy()
-                        deleteBlock(blocksMap[headPosition]!!)
-                        blocksMap[headPosition] = newBlock
-                        drawBlock(newBlock, headPosition)
-                    }
+                mergeMap.forEach { (headPosition, valueAndMergePositions) ->
+                    valueAndMergePositions.second.forEach { position -> deleteBlock(blocksMap[position]!!) }
+                    val value = valueAndMergePositions.first
+                    val newBlock = blocksMap[headPosition]!!.updateNumber(value).unselect().copy()
+                    deleteBlock(blocksMap[headPosition]!!)
+                    blocksMap[headPosition] = newBlock
+                    drawBlock(newBlock, headPosition)
                 }
             }
             sequenceLazy {
@@ -64,8 +58,9 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                             val y = getYFromPosition(position)
                             val scale = block.scale
 
-                            val newBlock =
-                                addBlock(block).position(x + cellSize / 2, y + cellSize / 2).scale(0)
+                            val newBlock = addBlock(block)
+                            newBlock.position(x + cellSize / 2, y + cellSize / 2)
+                            newBlock.scale = 0.0
 
                             tween(
                                 newBlock::x[x],
@@ -97,6 +92,8 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                 if (!hasAvailableMoves() && bombsLoadedCount.value == 0 && rocketsLoadedCount.value == 0) {
                     Napier.d("Game Over!")
                     showGameOver { restart() }
+                    // Show an interstitial once the round is over.
+                    launchImmediately { Ads.showInterstitial() }
                 }
             }
         }
@@ -114,10 +111,10 @@ fun Animator.animateGravity() {
                         val newPosition = Position(position.x, gridRows - 1 - it)
                         if (newPosition != position)
                             {
-                                blocksMap[position]!!.moveTo(getXFromPosition(newPosition), getYFromPosition(newPosition), 0.5.seconds, Easing.EASE_SINE)
+                                moveTo(blocksMap[position]!!, getXFromPosition(newPosition), getYFromPosition(newPosition), 0.5.seconds, Easing.EASE_SINE)
                             }
                         newPosition
-                    } 
+                    }
             }.toMutableMap()
     }
 }
@@ -146,7 +143,7 @@ fun Stage.animatePowerUpSelection(
     image: View,
     toggle: Boolean,
 ) = launchImmediately {
-    animateSequence {
+    animate {
         val x = image.x
         val y = image.y
         if (toggle) {
@@ -175,7 +172,7 @@ fun Stage.generateNewBlocks() =
         Napier.d("Generating new blocks ${newPositionBlocks.map { (position, block) -> "${block.number.value} at (${position.log()}\n" }}")
         blocksMap.putAll(newPositionBlocks)
 
-        animateSequence {
+        animate {
             parallel {
                 newPositionBlocks
                     .forEach { (position, block) ->
@@ -184,8 +181,9 @@ fun Stage.generateNewBlocks() =
                         val y = getYFromPosition(position)
                         val scale = block.scale
 
-                        val newBlock =
-                            addBlock(block).position(x + cellSize / 2, y + cellSize / 2).scale(0)
+                        val newBlock = addBlock(block)
+                        newBlock.position(x + cellSize / 2, y + cellSize / 2)
+                        newBlock.scale = 0.0
 
                         tween(
                             newBlock::x[x],
@@ -202,7 +200,7 @@ fun Stage.generateNewBlocks() =
 fun Stage.animateBomb() =
     launchImmediately {
         startAnimating()
-        animateSequence {
+        animate {
             parallel {
                 Napier.v("Animating the bomb")
                 hoveredBombPositions.forEach { position ->
@@ -210,7 +208,8 @@ fun Stage.animateBomb() =
                     val xDirection = sin(random)
                     val yDirection = cos(random)
                     Napier.d("Bombing block at ${position.log()}")
-                    blocksMap[position]!!.moveTo(
+                    moveTo(
+                        blocksMap[position]!!,
                         xDirection * 1000,
                         yDirection * 1000,
                         0.8.seconds,
@@ -237,9 +236,10 @@ fun Stage.animateRocket(selection: RocketSelection) =
                 val firstPosition = selection.firstPosition!!
                 val secondPosition = selection.secondPosition!!
                 Napier.d("Rocketing block from ${firstPosition.log()} to ${secondPosition.log()}")
-                animateSequence {
+                animate {
                     parallel {
-                        blocksMap[firstPosition]!!.moveTo(
+                        moveTo(
+                            blocksMap[firstPosition]!!,
                             getXFromPosition(secondPosition),
                             getYFromPosition(secondPosition),
                             0.15.seconds,
@@ -269,7 +269,7 @@ fun Stage.animateSelectedBlock(
             Napier.e("Empty block passed into animateSelectedBlock")
         } else {
         val block = maybeBlock!!
-        animateSequence {
+        animate {
             val x = block.x
             val y = block.y
             if (selected) {

@@ -1,6 +1,5 @@
-import com.soywiz.korge.view.Stage
-import com.soywiz.korma.geom.Point
-import io.github.aakira.napier.Napier
+import korlibs.korge.view.Stage
+import korlibs.math.geom.Point
 
 fun getXFromIndex(index: Int) = leftIndent + cellIndentSize + (cellSize + cellIndentSize) * index
 

@@ -1,5 +1,4 @@
-import com.soywiz.korge.view.*
-import io.github.aakira.napier.Napier
+import korlibs.korge.view.*
 import kotlin.math.max
 import kotlin.math.min
 
