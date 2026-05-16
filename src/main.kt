@@ -88,7 +88,7 @@ const val mediumSelectionSize = 6
 const val largeSelectionSize = 18
 
 suspend fun main() =
-    Korge(windowSize = Size(360, 640), title = "2048", backgroundColor = RGBA(253, 247, 240)) {
+    Korge(windowSize = Size(360, 640), title = "Trillium", backgroundColor = RGBA(253, 247, 240)) {
         Napier.base(DebugAntilog())
 
         // Wire up interstitial ads (real on Android, no-op elsewhere) and start preloading one.
