@@ -142,3 +142,17 @@ tasks.matching { it.name == "prepareKotlinNativeIosProject" }.configureEach {
         }
     }
 }
+
+// =====================================================================================
+// Android adaptive launcher icon
+// -------------------------------------------------------------------------------------
+// KorGE 6 emits only a legacy bitmap launcher icon (@mipmap/icon). On Android 8+ the
+// launcher wraps a legacy icon in a shrunken white circle. android/res/ adds a proper
+// <adaptive-icon> (mipmap-anydpi-v26/icon.xml) that overrides @mipmap/icon for API 26+,
+// so the artwork fills the launcher mask edge-to-edge. We register it as an extra res
+// source dir; KorGE's generated androires (set at configuration time) is left untouched.
+// =====================================================================================
+project.afterEvaluate {
+    val android = extensions.findByName("android") as? com.android.build.gradle.BaseExtension
+    android?.sourceSets?.getByName("main")?.res?.srcDir(file("android/res"))
+}

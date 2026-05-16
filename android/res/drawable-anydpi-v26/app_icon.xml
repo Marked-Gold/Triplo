@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive version of @drawable/app_icon (Android 8+ / API 26+).
+
+  KorGE sets android:icon="@drawable/app_icon" on the launcher <activity>, and launchers
+  show the activity icon in preference to the application icon. So overriding only
+  @mipmap/icon is not enough - this overrides @drawable/app_icon as well, with the same
+  artwork-as-background adaptive icon. The plain drawable/app_icon.png remains the API <26
+  fallback.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/icon_background" />
+    <foreground android:drawable="@android:color/transparent" />
+</adaptive-icon>

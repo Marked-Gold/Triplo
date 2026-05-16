@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive launcher icon (Android 8+ / API 26+). Overrides KorGE's legacy @mipmap/icon
+  bitmap so launchers stop wrapping the icon in a shrunken white circle.
+
+  The whole finished artwork lives in the *background* layer (icon_background.png is
+  icon.png centred at 72/108 scale, padded out to the full 108dp canvas) and the
+  foreground is empty. That makes the artwork fill the launcher mask edge-to-edge.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/icon_background" />
+    <foreground android:drawable="@android:color/transparent" />
+</adaptive-icon>
