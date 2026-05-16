@@ -5,6 +5,11 @@ import korlibs.image.color.*
 import korlibs.math.geom.*
 import kotlin.random.Random
 
+private const val idleBorderThickness = 3.5
+
+// A thicker border makes the selection-preview colour clearly visible (issue 3).
+private const val selectionBorderThickness = 6.0
+
 
 fun Container.addBlock(block: Block) = block.addTo(this)
 fun Container.removeBlock(block: Block) {
@@ -41,23 +46,70 @@ enum class BlockSelection () {
         }
 }
 
-data class Block(val id: Int, var number: Number, var selection: BlockSelection = BlockSelection.UNSELECTED) : Container() {
+/**
+ * A single playing-field block.
+ *
+ * Selection preview (issue 4): while a chain is being dragged, every selected block previews the
+ * number it is becoming. [previewNumber] drives that preview — non-result blocks just recolour
+ * their border to the upcoming colour, while [isResultBlock] blocks (the squares that actually
+ * become the upgraded result) are fully recoloured.
+ */
+data class Block(
+    val id: Int,
+    var number: Number,
+    var selection: BlockSelection = BlockSelection.UNSELECTED,
+    var previewNumber: Number? = null,
+    var isResultBlock: Boolean = false,
+) : Container() {
 
     init {
-        roundRect(Size(cellSize, cellSize), RectCorners(5), fill = number.color, stroke = selection.colorBorder(number), strokeThickness = 3.5)
-        roundRect(Size(cellSize, cellSize), RectCorners(5), fill = selection.colorContent(number).withA(80))
-
-        text(number.display, textSizeFor(number), number.TextColor, font).apply {
-            when (number.ordinal) {
-                0 -> centerBetween(0.0, 0.0, cellSize*1.0-4, cellSize*1.0)
-                else -> centerBetween(0.0, 0.0, cellSize*1.0, cellSize*1.0)
+        val size = Size(cellSize, cellSize)
+        val preview = previewNumber
+        when {
+            // Result square: fully recoloured to the block it is becoming.
+            preview != null && isResultBlock -> {
+                roundRect(size, RectCorners(5), fill = preview.color, stroke = preview.color, strokeThickness = selectionBorderThickness)
+                drawNumber(preview.TextColor)
             }
-
+            // Selected (but consumed) square: keeps its colour, border hints the upcoming colour.
+            preview != null -> {
+                roundRect(size, RectCorners(5), fill = number.color, stroke = preview.color, strokeThickness = selectionBorderThickness)
+                drawNumber(number.TextColor)
+            }
+            // Bomb / rocket selections keep their dedicated styling.
+            selection == BlockSelection.BOMB || selection == BlockSelection.ROCKET -> {
+                roundRect(size, RectCorners(5), fill = number.color, stroke = selection.colorBorder(number), strokeThickness = selectionBorderThickness)
+                roundRect(size, RectCorners(5), fill = selection.colorContent(number).withA(80))
+                drawNumber(number.TextColor)
+            }
+            // Idle block.
+            else -> {
+                roundRect(size, RectCorners(5), fill = number.color, stroke = number.color, strokeThickness = idleBorderThickness)
+                drawNumber(number.TextColor)
+            }
         }
+    }
+
+    /**
+     * Draws the block's number centred on its actual glyph ink (issue 3).
+     *
+     * KorGE's text alignment centres the glyph *advance* box, which leaves characters with an
+     * asymmetric side-bearing (notably "1") looking off-centre. Measuring the rendered bounds and
+     * offsetting by them centres what is actually visible.
+     */
+    private fun drawNumber(textColor: RGBA) {
+        val label = text(number.display, textSizeFor(number), textColor, font)
+        val bounds = label.getLocalBounds()
+        label.xy(
+            cellSize / 2.0 - bounds.x - bounds.width / 2.0,
+            cellSize / 2.0 - bounds.y - bounds.height / 2.0,
+        )
     }
 
     fun unselect (): Block {
         this.selection = BlockSelection.UNSELECTED
+        this.previewNumber = null
+        this.isResultBlock = false
         return this
     }
 
@@ -109,7 +161,7 @@ data class Block(val id: Int, var number: Number, var selection: BlockSelection 
     }
 
     fun copy (): Block {
-        return Block(id, number, selection)
+        return Block(id, number, selection, previewNumber, isResultBlock)
     }
 
     fun copyToNextId (): Block {

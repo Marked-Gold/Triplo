@@ -112,8 +112,8 @@ fun Stage.pressDown(maybePosition: Position?) {
         if (blocksMap[maybePosition] != null) {
             Napier.v("Selecting Block at Position(${maybePosition.x},${maybePosition.y})")
             hoveredPositions.add(maybePosition)
-            updateBlock(blocksMap[maybePosition]!!.select(), maybePosition)
-            selectBlocks()
+            blocksMap[maybePosition] = blocksMap[maybePosition]!!.select()
+            updateSelectionPreview()
         } else {
             Napier.w("No block found at Position(${maybePosition.x},${maybePosition.y})")
         }
@@ -140,54 +140,52 @@ fun Stage.hoverBlock(maybePosition: Position?) {
         } else {
             if (hoveredPositions.elementAtOrNull(hoveredPositions.size - 2) == maybePosition) {
                 Napier.d("Reverted previous hover")
-                updateBlock(
-                    blocksMap[hoveredPositions[(hoveredPositions.size - 1)]]!!.unselect(),
-                    hoveredPositions[(hoveredPositions.size - 1)],
-                )
-                val removedBlock = hoveredPositions.removeAt(hoveredPositions.size - 1)
+                val reverted = hoveredPositions.removeAt(hoveredPositions.size - 1)
+                updateBlock(blocksMap[reverted]!!.unselect(), reverted)
             } else {
                 Napier.v(
                     "Hovering Block at Position(${maybePosition.x},${maybePosition.y} from Position(${hoveredPositions.last().x},${hoveredPositions.last().y})",
                 )
                 hoveredPositions.add(maybePosition)
-                updateBlock(blocksMap[maybePosition]!!.select(), maybePosition)
+                blocksMap[maybePosition] = blocksMap[maybePosition]!!.select()
             }
 
-            checkForHoveredPattern(maybePosition!!)
+            updateSelectionPreview()
         }
     }
 }
 
-var hoveredSelection: BlockSelection = BlockSelection.SMALL
+/**
+ * Refreshes the selection preview for every hovered block (issue 4).
+ *
+ * Once the chain is long enough to merge, the preview mirrors the real merge ([determineMerge]):
+ * the result squares are fully recoloured to what they become, and the consumed squares only
+ * recolour their border to the upcoming colour. Shorter chains just border-hint the next colour.
+ */
+fun Stage.updateSelectionPreview() {
+    if (hoveredPositions.isEmpty()) return
 
-fun Stage.checkForHoveredPattern(position: Position)  {
-    val isPowerUp = determinePattern(hoveredPositions).isPowerUp()
-    if (isPowerUp && hoveredSelection != BlockSelection.PATTERN)
-        {
-            hoveredSelection = BlockSelection.PATTERN
-            hoveredPositions.forEach { position2 -> updateBlock(blocksMap[position2]!!.selectPattern(), position2) }
-        } else if (isPowerUp)
-        {
-            updateBlock(blocksMap[position]!!.selectPattern(), position)
-        } else if (hoveredPositions.size >= largeSelectionSize && hoveredSelection != BlockSelection.EXTRALARGE) {
-        hoveredSelection = BlockSelection.EXTRALARGE
-        hoveredPositions.forEach { position2 -> updateBlock(blocksMap[position2]!!.selectExtraLarge(), position2) }
-    } else if (hoveredPositions.size >= largeSelectionSize) {
-        updateBlock(blocksMap[position]!!.selectExtraLarge(), position)
-    } else if (hoveredPositions.size >= rocketPowerUpLength && hoveredSelection != BlockSelection.LARGE) {
-        hoveredSelection = BlockSelection.LARGE
-        hoveredPositions.forEach { position2 -> updateBlock(blocksMap[position2]!!.selectLarge(), position2) }
-    } else if (hoveredPositions.size >= rocketPowerUpLength) {
-        updateBlock(blocksMap[position]!!.selectLarge(), position)
-    } else if (hoveredPositions.size >= mediumSelectionSize && hoveredSelection != BlockSelection.MEDIUM) {
-        hoveredSelection = BlockSelection.MEDIUM
-        hoveredPositions.forEach { position2 -> updateBlock(blocksMap[position2]!!.selectMedium(), position2) }
-    } else if (hoveredPositions.size >= mediumSelectionSize) {
-        updateBlock(blocksMap[position]!!.selectMedium(), position)
-    } else if (hoveredSelection != BlockSelection.SMALL) {
-        hoveredSelection = BlockSelection.SMALL
-        hoveredPositions.forEach { position2 -> updateBlock(blocksMap[position2]!!.select(), position2) }
+    val previews = mutableMapOf<Position, Pair<Number, Boolean>>()
+    if (hoveredPositions.size < smallSelectionSize) {
+        hoveredPositions.forEach { position ->
+            val nextNumber = blocksMap[position]?.number?.next() ?: return@forEach
+            previews[position] = Pair(nextNumber, false)
+        }
     } else {
-        updateBlock(blocksMap[position]!!.select(), position)
+        // determineMerge mutates its argument, so hand it a copy.
+        val mergeMap = determineMerge(hoveredPositions.toMutableList())
+        mergeMap.forEach { (head, resultAndConsumed) ->
+            val resultNumber = resultAndConsumed.first
+            previews[head] = Pair(resultNumber, true)
+            resultAndConsumed.second.forEach { consumed -> previews[consumed] = Pair(resultNumber, false) }
+        }
+    }
+
+    hoveredPositions.forEach { position ->
+        val block = blocksMap[position] ?: return@forEach
+        val preview = previews[position]
+        block.previewNumber = preview?.first
+        block.isResultBlock = preview?.second ?: false
+        updateBlock(block, position)
     }
 }

@@ -88,7 +88,14 @@ const val mediumSelectionSize = 6
 const val largeSelectionSize = 18
 
 suspend fun main() =
-    Korge(windowSize = Size(360, 640), title = "Trillium", backgroundColor = RGBA(253, 247, 240)) {
+    Korge(
+        windowSize = Size(360, 640),
+        title = "Trillium",
+        backgroundColor = RGBA(253, 247, 240),
+        // CENTER_NO_CLIP keeps the game letterboxed but does not clip the borders, so the
+        // background can bleed past the virtual area to fill any phone aspect ratio (issue 5).
+        displayMode = KorgeDisplayMode.CENTER_NO_CLIP,
+    ) {
         Napier.base(DebugAntilog())
 
         // Wire up interstitial ads (real on Android, no-op elsewhere) and start preloading one.
@@ -96,14 +103,15 @@ suspend fun main() =
 
         val backgroundImg = resourcesVfs["background_triangles.png"].readBitmap()
 
-        val background =
-            container {
-                image(backgroundImg) {
-                    size(views.virtualWidth, views.virtualHeight)
-                }
-                alignTopToTopOf(this)
-                alignRightToRightOf(this)
-            }
+        // Oversize the background and centre it so it covers the whole screen on every device,
+        // including the letterbox margins outside the 360x640 virtual area. 2x comfortably covers
+        // every phone aspect ratio without zooming the triangle pattern in too far.
+        image(backgroundImg) {
+            val bgWidth = views.virtualWidth * 2.0
+            val bgHeight = views.virtualHeight * 2.0
+            size(bgWidth, bgHeight)
+            xy((views.virtualWidth - bgWidth) / 2.0, (views.virtualHeight - bgHeight) / 2.0)
+        }
 
         val storage = views.storage
         best.update(storage.getOrNull("best")?.toInt() ?: 0)
@@ -153,30 +161,23 @@ suspend fun main() =
             }
         }.xy(leftIndent, topIndent)
 
-        val pauseImg = resourcesVfs["pause.png"].readBitmap()
-        val restartImg = resourcesVfs["restart.png"].readBitmap()
-        val shareImg = resourcesVfs["share.png"].readBitmap()
-
         val btnSize = cellSize * 1.0
         val restartBlock =
             container {
                 val backgroundBlock = roundRect(Size(btnSize, btnSize), RectCorners(5), fill = restartAndScoreColor)
-                image(pauseImg) {
-                    size(btnSize * 0.8, btnSize * 0.8)
-                    centerOn(backgroundBlock)
-                }
+                pauseIcon(btnSize * 0.6).centerOn(backgroundBlock)
                 alignLeftToLeftOf(gameField, cellSize * 0.5)
                 alignBottomToTopOf(gameField, cellSize * 0.75)
                 onClick {
                     if (!showingRestart) {
                         unselectAllPowerUps()
-                        restartPopupContainer = this@Korge.showRestart({
+                        restartPopupContainer = this@Korge.showRestart {
                             // Show an interstitial when the player restarts from the pause menu.
                             this@Korge.launchImmediately {
                                 Ads.showInterstitial()
                                 this@Korge.restart()
                             }
-                        }, restartImg, shareImg)
+                        }
                         Napier.d("Restart Button Clicked")
                     } else
                         {
@@ -550,7 +551,7 @@ fun Container.showGameOver(onGameOver: () -> Unit) =
 
 
 
-fun Container.showRestart(onRestart: () -> Unit, restartBitmap: Bitmap, shareBitmap: Bitmap) =
+fun Container.showRestart(onRestart: () -> Unit) =
     container {
         showingRestart = true
         Napier.d("Showing Restart Container...")
@@ -623,27 +624,30 @@ fun Container.showRestart(onRestart: () -> Unit, restartBitmap: Bitmap, shareBit
 
         fun clearPopup () { this@container.removeFromParent() }
 
+        // Lays out a label and its icon as a single group, centred inside the button (issue 1).
+        fun centerLabelAndIcon(label: View, icon: View, within: View) {
+            val gap = fieldWidth * 0.045
+            val startX = within.x + (within.width - (label.width + gap + icon.width)) / 2.0
+            label.x = startX
+            label.centerYOn(within)
+            icon.x = startX + label.width + gap
+            icon.centerYOn(within)
+        }
+
         val bgRestartContainer =
             container {
                 val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
                     alignTopToTopOf(restartBackground, fieldHeight * 0.32)
                 }
-                text("RESTART", 27.0, pauseScreenTextColor, font) {
-                    alignLeftToLeftOf(textContainer, 15.0)
-                    alignTopToTopOf(textContainer, fieldHeight * 0.07)
-
-                    alignment = TextAlignment.MIDDLE_CENTER
+                val label = text("RESTART", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
                     onOut { color = pauseScreenTextColor }
                     onDown { color = pauseScreenTextDownColor }
                     onUp { color = pauseScreenTextDownColor }
                 }
-                image(restartBitmap) {
-                    size(fieldWidth * 0.13, fieldWidth * 0.13)
-                    centerYOn(textContainer)
-                    alignRightToRightOf(textContainer, 15.0)
-                }
+                val icon = restartIcon(fieldWidth * 0.13, pauseScreenTextColor)
+                centerLabelAndIcon(label, icon, textContainer)
                 onUp {
                     Napier.d("Restart Button - YES Clicked")
                     showingRestart = false
@@ -662,21 +666,14 @@ fun Container.showRestart(onRestart: () -> Unit, restartBitmap: Bitmap, shareBit
                     centerXOn(restartBackground)
                     alignBottomToBottomOf(restartBackground, fieldHeight * 0.15)
                 }
-                text("SHARE", 27.0, pauseScreenTextColor, font) {
-                    alignLeftToLeftOf(textContainer, 15.0)
-                    alignTopToTopOf(textContainer, fieldHeight * 0.07)
-
-                    alignment = TextAlignment.MIDDLE_CENTER
+                val label = text("SHARE", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
                     onOut { color = pauseScreenTextColor }
                     onDown { color = pauseScreenTextDownColor }
                     onUp { color = pauseScreenTextDownColor }
                 }
-                image(shareBitmap){
-                    size(fieldWidth * 0.13, fieldWidth * 0.13)
-                    centerYOn(textContainer)
-                    alignRightToRightOf(textContainer, 15.0)
-                }
+                val icon = shareIcon(fieldWidth * 0.13, pauseScreenTextColor)
+                centerLabelAndIcon(label, icon, textContainer)
                 onUp {
                     Napier.d("Share Button - YES Clicked")
                     copyBlocksToClipboard()
