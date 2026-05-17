@@ -170,7 +170,7 @@ private fun Stage.showCurrentTutorialStep() {
             showActionStep(
                 "ROCKETS",
                 "Tap the rocket, then tap two blocks",
-                "Moves a block. Earned from chains of 8 or more.",
+                "Swaps two blocks. Earned from chains of 8 or more.",
                 rocketContainer,
                 highlightActive = { !rocketSelection.selected },
             )
@@ -568,8 +568,8 @@ private fun infoPages(): List<InfoPage> =
             listOf(
                 "Select a chain of 8 or more blocks in one merge " +
                     "to earn a rocket (hold up to 5).",
-                "Tap the rocket, then two blocks, to teleport the " +
-                    "first onto the second.",
+                "Tap the rocket, then two blocks, to swap their " +
+                    "positions.",
             ),
         ),
         InfoPage(

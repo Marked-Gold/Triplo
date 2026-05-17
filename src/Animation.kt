@@ -4,6 +4,7 @@ import korlibs.korge.tween.*
 import korlibs.korge.view.*
 import korlibs.io.async.launchImmediately
 import korlibs.math.interpolation.*
+import korlibs.math.geom.*
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -295,29 +296,57 @@ fun Stage.generateNewBlocks() =
 fun Stage.animateBomb() =
     launchImmediately {
         startAnimating()
-        animate {
-            parallel {
-                Napier.v("Animating the bomb")
-                hoveredBombPositions.forEach { position ->
-                    val random = Random.nextDouble(0.0, 2 * 3.1415)
-                    val xDirection = sin(random)
-                    val yDirection = cos(random)
-                    Napier.d("Bombing block at ${position.log()}")
-                    moveTo(
-                        blocksMap[position]!!,
-                        xDirection * 1000,
-                        yDirection * 1000,
-                        0.8.seconds,
-                        Easing.EASE_OUT_QUAD,
-                    )
+        Napier.v("Animating the bomb")
+        val bombedPositions = hoveredBombPositions.toList()
+        hoveredBombPositions.clear()
+        val flyingBlocks = bombedPositions.mapNotNull { blocksMap[it] }
+
+        // Run the long fly-off in the background so the new pieces can start
+        // dropping in while the old tiles are still spinning away.
+        val flyOff = launchImmediately {
+            animate {
+                parallel {
+                    flyingBlocks.forEach { block ->
+                        val random = Random.nextDouble(0.0, 2 * 3.1415)
+                        val xDirection = sin(random)
+                        val yDirection = cos(random)
+                        Napier.d("Bombing block id ${block.id}")
+                        // Re-centre the rotation pivot: a block rotates around its local
+                        // origin (top-left corner), which makes it orbit awkwardly. Shift
+                        // its content to be origin-centred and compensate the block's
+                        // position so it stays put before the spin begins.
+                        block.forEachChild { child -> child.xy(child.x - cellSize / 2, child.y - cellSize / 2) }
+                        block.xy(block.x + cellSize / 2, block.y + cellSize / 2)
+                        moveTo(
+                            block,
+                            xDirection * 1000 + cellSize / 2,
+                            yDirection * 1000 + cellSize / 2,
+                            2.8.seconds,
+                            Easing.EASE_OUT_QUAD,
+                        )
+                        val spin = Random.nextDouble(3.0, 5.0) * if (Random.nextBoolean()) 1 else -1
+                        rotateBy(
+                            block,
+                            (spin * 360).degrees,
+                            2.8.seconds,
+                            Easing.EASE_OUT_QUAD,
+                        )
+                    }
+                }
+                block {
+                    flyingBlocks.forEach { removeBlock(it) }
                 }
             }
-            block {
-                hoveredBombPositions.forEach { position -> deleteBlock(blocksMap[position]!!) }
-                hoveredBombPositions.clear()
-            }
         }
+
+        // Free the bombed cells immediately so the new pieces can be generated,
+        // then drop them in after a short head start — well before the old tiles
+        // have finished flying off.
+        blocksMap = blocksMap.filter { (_, block) -> flyingBlocks.none { it.id == block.id } }.toMutableMap()
+        delay(500L)
         generateNewBlocks()
+
+        flyOff.join()
         stopAnimating()
         checkGameOver()
         onTutorialBomb()
@@ -332,24 +361,29 @@ fun Stage.animateRocket(selection: RocketSelection) =
                 startAnimating()
                 val firstPosition = selection.firstPosition!!
                 val secondPosition = selection.secondPosition!!
-                Napier.d("Rocketing block from ${firstPosition.log()} to ${secondPosition.log()}")
+                val firstBlock = blocksMap[firstPosition]!!
+                val secondBlock = blocksMap[secondPosition]!!
+                Napier.d("Rocketing: swapping ${firstPosition.log()} and ${secondPosition.log()}")
                 animate {
                     parallel {
                         moveTo(
-                            blocksMap[firstPosition]!!,
+                            firstBlock,
                             getXFromPosition(secondPosition),
                             getYFromPosition(secondPosition),
                             0.15.seconds,
                             Easing.LINEAR,
                         )
+                        moveTo(
+                            secondBlock,
+                            getXFromPosition(firstPosition),
+                            getYFromPosition(firstPosition),
+                            0.15.seconds,
+                            Easing.LINEAR,
+                        )
                     }
-                    sequenceLazy {
-                        deleteBlock(blocksMap[secondPosition])
-                        updateBlock(blocksMap[firstPosition]!!.copyToNextId().unselect(), secondPosition)
-                        deleteBlock(blocksMap[firstPosition])
-                    }
-                    sequenceLazy {
-                        generateNewBlocks()
+                    block {
+                        updateBlock(firstBlock.unselect(), secondPosition)
+                        updateBlock(secondBlock.unselect(), firstPosition)
                     }
                 }
                 stopAnimating()
