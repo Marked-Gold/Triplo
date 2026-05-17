@@ -15,6 +15,11 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
         // One bomb is awarded for every block of 243 (tier FIVE) or higher created
         // by this merge, regardless of whether that tier has been reached before.
         var bombsEarned = 0
+        // The highest-tier block (81 / tier FOUR or above) forged by this merge,
+        // and where it landed: once the merge settles its colour ripples out
+        // across the background from that spot.
+        var topTier: Number? = null
+        var topHead: Position? = null
         animate {
             parallel {
                 Napier.v("Animating the blocks merging together")
@@ -39,6 +44,12 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                     valueAndMergePositions.second.forEach { position -> deleteBlock(blocksMap[position]!!) }
                     val value = valueAndMergePositions.first
                     if (value.ordinal >= Number.FIVE.ordinal) bombsEarned++
+                    if (value.ordinal >= Number.FOUR.ordinal &&
+                        (topTier == null || value.ordinal > topTier!!.ordinal)
+                    ) {
+                        topTier = value
+                        topHead = headPosition
+                    }
                     val newBlock = blocksMap[headPosition]!!.updateNumber(value).unselect().copy()
                     deleteBlock(blocksMap[headPosition]!!)
                     blocksMap[headPosition] = newBlock
@@ -91,7 +102,17 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                     Napier.d("Merge created $bombsEarned block(s) of 243+, awarding $bombsEarned bomb(s)")
                     tryAddBombs(bombsEarned)
                 }
+                val tier = topTier
+                val head = topHead
+                if (tier != null && head != null) {
+                    triggerBackgroundPulse(
+                        tier.color,
+                        getXFromPosition(head) + cellSize / 2.0,
+                        getYFromPosition(head) + cellSize / 2.0,
+                    )
+                }
                 checkGameOver()
+                onTutorialMerge()
             }
         }
     }
@@ -100,13 +121,19 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
 // power-ups left to break the deadlock. Must run after every board-changing
 // animation (merge, bomb, rocket) — any of them can leave the board dead.
 fun Stage.checkGameOver() {
+    // The scripted tutorial drains power-ups on purpose; never end the game during it.
+    if (tutorialActive) return
     if (!hasAvailableMoves() && bombsLoadedCount.value == 0 && rocketsLoadedCount.value == 0) {
         Napier.d("Game Over!")
-        showRestart(isGameOver = true) {
-            // Only show the interstitial once the player chooses to restart.
-            launchImmediately {
-                Ads.showInterstitial()
-                restart()
+        launchImmediately {
+            // First the board shakes to signal the dead end, then the screen staggers in.
+            animateBoardShake()
+            showRestart(isGameOver = true) {
+                // Only show the interstitial once the player chooses to restart.
+                launchImmediately {
+                    Ads.showInterstitial()
+                    restart()
+                }
             }
         }
     }
@@ -179,18 +206,58 @@ fun Stage.animatePowerUpSelection(
     }
 }
 
-// Reveals the heading one character at a time, typewriter style. The glyph list holds
-// the stacked faux-bold copies of the same text; they are typed out in lockstep.
-fun View.animateTypewriter(glyphs: List<Text>, fullText: String) {
-    val stage = stage ?: return
-    glyphs.forEach { it.text = "" }
-    stage.launchImmediately {
-        delay(200L)
-        for (i in 1..fullText.length) {
-            val visible = fullText.substring(0, i)
-            glyphs.forEach { it.text = visible }
-            delay(80L)
+// Shakes the whole board left and right to signal the player is out of moves.
+// A decaying ~0.54s shake; suspends until it settles so the screen can follow it.
+suspend fun Stage.animateBoardShake() {
+    val blocks = blocksMap.values.toList()
+    if (blocks.isEmpty()) return
+    val homeX = blocks.associateWith { it.x }
+    animate {
+        for (dx in listOf(10.0, -9.0, 7.0, -5.0, 3.0, 0.0)) {
+            parallel {
+                blocks.forEach { block ->
+                    tween(block::x[homeX.getValue(block) + dx], time = 0.09.seconds, easing = Easing.LINEAR)
+                }
+            }
         }
+    }.awaitComplete()
+}
+
+// Staggers the game-over screen in over ~1.3s (the board shake runs first, for ~1.85s
+// total): the dark overlay fades up, the heading types out one character at a time,
+// then the RESTART / SHARE buttons rise into place. The glyph list holds the stacked
+// faux-bold copies of the heading, typed out in lockstep.
+fun View.animateGameOverIntro(
+    overlay: View,
+    headingGlyphs: List<Text>,
+    headingText: String,
+    buttons: List<View>,
+) {
+    val stage = stage ?: return
+    overlay.alpha = 0.0
+    headingGlyphs.forEach { it.text = "" }
+    buttons.forEach {
+        it.alpha = 0.0
+        it.y += 16.0
+    }
+    stage.launchImmediately {
+        // 1. The dark overlay fades up (~0.35s).
+        animate { alpha(overlay, 1.0, 0.35.seconds, Easing.EASE_OUT) }.awaitComplete()
+        // 2. The heading types out, one character at a time (~0.63s).
+        for (i in 1..headingText.length) {
+            val visible = headingText.substring(0, i)
+            headingGlyphs.forEach { it.text = visible }
+            delay(70L)
+        }
+        // 3. The buttons fade in and rise into place (~0.34s).
+        animate {
+            parallel {
+                buttons.forEach { button ->
+                    alpha(button, 1.0, 0.34.seconds, Easing.EASE_OUT)
+                    tween(button::y[button.y - 16.0], time = 0.34.seconds, easing = Easing.EASE_OUT)
+                }
+            }
+        }.awaitComplete()
     }
 }
 
@@ -253,6 +320,7 @@ fun Stage.animateBomb() =
         generateNewBlocks()
         stopAnimating()
         checkGameOver()
+        onTutorialBomb()
     }
 
 fun Stage.animateRocket(selection: RocketSelection) =
@@ -286,6 +354,7 @@ fun Stage.animateRocket(selection: RocketSelection) =
                 }
                 stopAnimating()
                 checkGameOver()
+                onTutorialRocket()
             }
         }
     }

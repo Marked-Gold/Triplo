@@ -81,6 +81,28 @@ fun Container.restartIcon(
         }
     }
 
+/** Help icon — a question mark. */
+fun Container.helpIcon(
+    s: Double,
+    color: RGBA = iconInk,
+): Container =
+    iconBox(s) {
+        graphics {
+            // Hook and stem.
+            stroke(color, lineWidth = s * 0.135, lineCap = LineCap.ROUND) {
+                moveTo(s * 0.29, s * 0.36)
+                quadTo(s * 0.29, s * 0.13, s * 0.5, s * 0.13)
+                quadTo(s * 0.71, s * 0.13, s * 0.71, s * 0.35)
+                quadTo(s * 0.71, s * 0.52, s * 0.5, s * 0.56)
+                lineTo(s * 0.5, s * 0.64)
+            }
+            // Dot.
+            fill(color) {
+                circle(Point(s * 0.5, s * 0.83), s * 0.085)
+            }
+        }
+    }
+
 /** Share icon — three connected nodes. */
 fun Container.shareIcon(
     s: Double,

@@ -11,6 +11,7 @@ import korlibs.image.text.TextAlignment
 import korlibs.io.async.ObservableProperty
 import korlibs.io.async.launchImmediately
 import korlibs.io.file.std.*
+import kotlinx.coroutines.delay
 import korlibs.time.*
 import korlibs.math.geom.*
 import korlibs.math.geom.vector.*
@@ -129,17 +130,9 @@ suspend fun main() =
         // Wire up interstitial ads (real on Android, no-op elsewhere) and start preloading one.
         views.installPlatformAds()
 
-        val backgroundImg = resourcesVfs["background_triangles.png"].readBitmap()
-
-        // Oversize the background and centre it so it covers the whole screen on every device,
-        // including the letterbox margins outside the 360x640 virtual area. 2x comfortably covers
-        // every phone aspect ratio without zooming the triangle pattern in too far.
-        image(backgroundImg) {
-            val bgWidth = views.virtualWidth * 2.0
-            val bgHeight = views.virtualHeight * 2.0
-            size(bgWidth, bgHeight)
-            xy((views.virtualWidth - bgWidth) / 2.0, (views.virtualHeight - bgHeight) / 2.0)
-        }
+        // Triangle art plus slowly drifting glow orbs; also wires up the colour
+        // wash that fires when a high-tier block is forged. See Background.kt.
+        setupBackground()
 
         val storage = views.storage
         best.update(storage.getOrNull("best")?.toInt() ?: 0)
@@ -216,6 +209,7 @@ suspend fun main() =
                 // Centre the (shorter) pause button on the score row's vertical centre.
                 y = scoreRowCenterY - btnSize / 2.0
                 onClick {
+                    if (!tutorialAllowsPause()) return@onClick
                     if (!showingRestart) {
                         unselectAllPowerUps()
                         restartPopupContainer = this@Korge.showRestart {
@@ -284,12 +278,10 @@ suspend fun main() =
                 val bombBackground = roundRect(Size(cellSize * 2.5, cellSize * 2.5), RectCorners(10), fill = bombContainerColor)
                 y = powerUpRowTop
                 alignLeftToLeftOf(gameField, fieldWidth / 8)
-                image(if (bombsLoadedCount.value > 0) loadedBombImg else emptyBombImg) {
-                    size(80, 80)
-                    centerOn(bombBackground)
-                }
+                bombIcon(cellSize * 2.2, bombsLoadedCount.value > 0) { bombSelected }
+                    .centerOn(bombBackground)
                 onClick {
-                    if (bombsLoadedCount.value > 0 && !showingRestart) {
+                    if (bombsLoadedCount.value > 0 && !showingRestart && tutorialAllowsBombTap()) {
                         bombSelected = !bombSelected
                         // Selecting the bomb cancels an in-progress rocket selection.
                         if (bombSelected && rocketSelection.selected) {
@@ -301,10 +293,8 @@ suspend fun main() =
                 }
                 bombsLoadedCount.observe {
                     this.removeChildrenIf { index, _ -> index == 1 }
-                    image(if (bombsLoadedCount.value > 0) loadedBombImg else emptyBombImg) {
-                        size(76, 76)
-                        centerOn(bombBackground)
-                    }
+                    bombIcon(cellSize * 2.2, bombsLoadedCount.value > 0) { bombSelected }
+                        .centerOn(bombBackground)
                 }
             }
 
@@ -334,17 +324,13 @@ suspend fun main() =
 
         rocketContainer =
             container {
-                val rocketBackground = roundRect(Size(cellSize * 2.5, cellSize * 2.5), RectCorners(10), fill = bombContainerColor)
-                val rocketWidth = 96
-                val rocketHeight = 96
+                val rocketBackground = roundRect(Size(cellSize * 2.5, cellSize * 2.5), RectCorners(10), fill = rocketContainerColor)
                 y = powerUpRowTop
                 alignRightToRightOf(gameField, fieldWidth / 8)
-                image(if (rocketsLoadedCount.value > 0) loadedRocketImg else emptyRocketImg) {
-                    size(rocketWidth, rocketHeight)
-                    centerOn(rocketBackground)
-                }
+                rocketIcon(cellSize * 2.3, rocketsLoadedCount.value > 0) { rocketSelection.selected }
+                    .centerOn(rocketBackground)
                 onClick {
-                    if (rocketsLoadedCount.value > 0 && !showingRestart) {
+                    if (rocketsLoadedCount.value > 0 && !showingRestart && tutorialAllowsRocketTap()) {
                         rocketSelection.toggleSelect()
                         // Selecting the rocket cancels a selected bomb.
                         if (rocketSelection.selected && bombSelected) {
@@ -357,10 +343,8 @@ suspend fun main() =
                 }
                 rocketsLoadedCount.observe {
                     this.removeChildrenIf { index, _ -> index == 1 }
-                    image(if (rocketsLoadedCount.value > 0) loadedRocketImg else emptyRocketImg) {
-                        size(rocketWidth, rocketHeight)
-                        centerOn(rocketBackground)
-                    }
+                    rocketIcon(cellSize * 2.3, rocketsLoadedCount.value > 0) { rocketSelection.selected }
+                        .centerOn(rocketBackground)
                 }
             }
 
@@ -395,9 +379,10 @@ suspend fun main() =
 
         Napier.d("UI Initialized")
 
+        // On first launch (no "tutorialSeen" flag yet) the interactive tutorial runs, scripting
+        // its own cells onto this board step by step.
+        val isFirstLaunch = storage.getOrNull(tutorialSeenKey) == null
         blocksMap = initializeRandomBlocksMap()
-        blocksMap = initializeFixedBlocksMap()
-        //blocksMap = initializeOnesBlocksMap()
         drawAllBlocks()
 
         blockScaleNormal = blocksMap[Position(0, 0)]!!.scale
@@ -410,11 +395,20 @@ suspend fun main() =
         // Idle hint loop: count up time since the last board touch and, once the
         // board is stuck with no available moves, jiggle any held power-up.
         addUpdater { dt ->
-            if (isAnimating || showingRestart) return@addUpdater
+            if (isAnimating || showingRestart || tutorialActive) return@addUpdater
             idleTime += dt.seconds
             if (idleTime >= nextIdleHintTime) {
                 nextIdleHintTime += idleHintDelay
                 checkIdleHint()
+            }
+        }
+
+        // On the very first launch, walk the player through a scripted merge, bomb and rocket,
+        // then mark the tutorial seen and deal a fresh random board.
+        if (isFirstLaunch) {
+            startInteractiveTutorial {
+                storage[tutorialSeenKey] = "true"
+                restart()
             }
         }
 }
@@ -477,21 +471,22 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
 
         fun clearPopup () { this@container.removeFromParent() }
 
-        // Lays out a label and its icon as a single group, centred inside the button (issue 1).
-        fun centerLabelAndIcon(label: View, icon: View, within: View) {
-            val gap = fieldWidth * 0.045
-            val startX = within.x + (within.width - (label.width + gap + icon.width)) / 2.0
-            label.x = startX
-            label.centerYOn(within)
-            icon.x = startX + label.width + gap
+        // Lays out each pause-menu button as [icon] [label]. The icon and label sit at fixed
+        // offsets from the button edge, so they line up into tidy columns across every button.
+        fun layoutButtonContent(label: View, icon: View, within: View) {
+            val pad = fieldWidth * 0.085
+            val gap = fieldWidth * 0.05
+            icon.x = within.x + pad
             icon.centerYOn(within)
+            label.x = within.x + pad + icon.width + gap
+            label.centerYOn(within)
         }
 
         val bgRestartContainer =
             container {
                 val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, fieldHeight * 0.32)
+                    alignTopToTopOf(restartBackground, fieldHeight * 0.20)
                 }
                 val label = text("RESTART", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
@@ -500,7 +495,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                     onUp { color = pauseScreenTextDownColor }
                 }
                 val icon = restartIcon(fieldWidth * 0.13, pauseScreenTextColor)
-                centerLabelAndIcon(label, icon, textContainer)
+                layoutButtonContent(label, icon, textContainer)
                 onUp {
                     Napier.d("Restart Button - YES Clicked")
                     showingRestart = false
@@ -514,10 +509,33 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                     clearPopup()
                 }
             }
+        val howToContainer =
             container {
                 val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignBottomToBottomOf(restartBackground, fieldHeight * 0.15)
+                    alignTopToTopOf(restartBackground, fieldHeight * 0.44)
+                }
+                val label = text("GUIDE", 27.0, pauseScreenTextColor, font) {
+                    onOver { color = pauseScreenTextHoverColor }
+                    onOut { color = pauseScreenTextColor }
+                    onDown { color = pauseScreenTextDownColor }
+                    onUp { color = pauseScreenTextDownColor }
+                }
+                val icon = helpIcon(fieldWidth * 0.13, pauseScreenTextColor)
+                layoutButtonContent(label, icon, textContainer)
+                onClick {
+                    Napier.d("How To Play Button Clicked")
+                    // Hide the pause popup while the guide is open so its buttons (and the
+                    // board) behind the guide cannot be clicked through; restore it on close.
+                    restartPopupContainer.visible = false
+                    stage?.showHowToPlay { restartPopupContainer.visible = true }
+                }
+            }
+        val shareContainer =
+            container {
+                val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
+                    centerXOn(restartBackground)
+                    alignBottomToBottomOf(restartBackground, fieldHeight * 0.12)
                 }
                 val label = text("SHARE", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
@@ -526,35 +544,46 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                     onUp { color = pauseScreenTextDownColor }
                 }
                 val icon = shareIcon(fieldWidth * 0.13, pauseScreenTextColor)
-                centerLabelAndIcon(label, icon, textContainer)
-                onUp {
+                layoutButtonContent(label, icon, textContainer)
+                // Copy the grid, then flash "COPIED" and a brighter button so the tap registers visibly.
+                fun shareAndConfirm() {
                     Napier.d("Share Button - YES Clicked")
                     copyBlocksToClipboard()
+                    label.text = "COPIED"
+                    textContainer.fill = pauseScreenBlockCopiedColor
+                    stage?.views?.launchImmediately {
+                        delay(1200L)
+                        label.text = "SHARE"
+                        textContainer.fill = pauseScreenBlockColor
+                    }
                 }
-                onClick {
-                    Napier.d("Share Button - YES Clicked")
-                    copyBlocksToClipboard()
-                }
+                onUp { shareAndConfirm() }
+                onClick { shareAndConfirm() }
             }
 
-        // On game over, add a heading above the RESTART button. Otherwise this is the pause screen.
+        // On game over, stagger the screen in and show a heading above the buttons.
+        // Otherwise this is the pause screen and everything is already visible.
         if (isGameOver) {
             val headingText = "GAME OVER"
             val headingGlyphs = mutableListOf<Text>()
-            val gameOverHeading =
-                container {
-                    // Faux-bold: clear_sans.fnt is a single-weight bitmap font, so stamp the
-                    // text twice with a 1px offset to thicken the strokes.
-                    for (offset in listOf(0.0, 1.0)) {
-                        headingGlyphs += text(headingText, 20.0, RGBA(0, 0, 0), font) {
-                            alignment = TextAlignment.MIDDLE_CENTER
-                            x = offset
-                        }
+            container {
+                // Faux-bold: clear_sans.fnt is a single-weight bitmap font, so stamp the
+                // text twice with a 1px offset to thicken the strokes.
+                for (offset in listOf(0.0, 1.0)) {
+                    headingGlyphs += text(headingText, 20.0, RGBA(0, 0, 0), font) {
+                        alignment = TextAlignment.MIDDLE_CENTER
+                        x = offset
                     }
-                    centerXOn(restartBackground)
-                    alignBottomToTopOf(bgRestartContainer, cellSize * 0.75)
                 }
-            gameOverHeading.animateTypewriter(headingGlyphs, headingText)
+                centerXOn(restartBackground)
+                alignBottomToTopOf(bgRestartContainer, cellSize * 0.75)
+            }
+            animateGameOverIntro(
+                restartBackground,
+                headingGlyphs,
+                headingText,
+                listOf(bgRestartContainer, howToContainer, shareContainer),
+            )
         }
     }
 

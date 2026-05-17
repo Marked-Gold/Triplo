@@ -139,23 +139,11 @@ fun getAllEmptyPositions(): List<Position> {
 
 fun getRandomNumber(): Number {
     val random = Random.nextDouble()
-    return when (blocksMap.maxOf { (_, block) -> block.number.ordinal }) {
-        in 0..5 -> {
-            when {
-                random < 0.05 -> Number.THREE
-                random < 0.2 -> Number.TWO
-                random < 0.55 -> Number.ONE
-                else -> Number.ZERO
-            }
-        }
-        else -> {
-            when {
-                random < 0.1 -> Number.THREE
-                random < 0.3 -> Number.TWO
-                random < 0.65 -> Number.ONE
-                else -> Number.ZERO
-            }
-        }
+    return when {
+        random < 0.05 -> Number.THREE
+        random < 0.2 -> Number.TWO
+        random < 0.55 -> Number.ONE
+        else -> Number.ZERO
     }
 }
 

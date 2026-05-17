@@ -50,6 +50,8 @@ fun Stage.handleDown(point: Point)  {
     when {
         isAnimating -> return
         showingRestart -> return
+        // During the tutorial only the current step's scripted action accepts board touches.
+        tutorialActive && !tutorialBoardEnabled() -> return
         bombSelected -> {
             isPressed = true
             drawBombHover(getPositionFromPoint(point))
@@ -87,6 +89,7 @@ fun Stage.handleUp(point: Point)  {
         isAnimating ||
             rocketSelection.selected ||
             showingRestart -> return
+        tutorialActive && !tutorialBoardEnabled() -> return
         bombSelected -> {
             val maybePosition = getPositionFromPoint(point)
             if (maybePosition == null) {
@@ -111,7 +114,9 @@ fun Stage.handleUp(point: Point)  {
 
 fun Stage.pressDown(maybePosition: Position?) {
     if (maybePosition != null) {
-        if (blocksMap[maybePosition] != null) {
+        if (tutorialBlocksPosition(maybePosition)) {
+            Napier.d("Tutorial blocked selection at ${maybePosition.log()}")
+        } else if (blocksMap[maybePosition] != null) {
             Napier.v("Selecting Block at Position(${maybePosition.x},${maybePosition.y})")
             hoveredPositions.add(maybePosition)
             blocksMap[maybePosition] = blocksMap[maybePosition]!!.select()
@@ -125,7 +130,9 @@ fun Stage.pressDown(maybePosition: Position?) {
 }
 
 fun Stage.hoverBlock(maybePosition: Position?) {
-    if (maybePosition != null && (hoveredPositions.size > 0 && hoveredPositions.last() != maybePosition)) {
+    if (maybePosition != null && tutorialBlocksPosition(maybePosition)) {
+        Napier.d("Tutorial blocked hover at ${maybePosition.log()}")
+    } else if (maybePosition != null && (hoveredPositions.size > 0 && hoveredPositions.last() != maybePosition)) {
         if (blocksMap[maybePosition] == null) {
             Napier.w("Null block found at Position(${maybePosition.x},${maybePosition.y})")
         } else if (hoveredPositions.size > 0 &&
