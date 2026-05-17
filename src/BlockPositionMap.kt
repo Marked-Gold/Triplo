@@ -51,28 +51,8 @@ fun initBlock(): Block {
     }
 }
 
-fun initOneBlock(): Block {
-    val selectedId = nextBlockId
-    nextBlockId++
-    return Block(id = selectedId, Number.ZERO)
-}
-
-fun initBlock(index: Int): Block {
-    val selectedId = nextBlockId
-    nextBlockId++
-    return Block(id = selectedId, Number.values()[index % Number.values().size])
-}
-
 fun initializeRandomBlocksMap(): MutableMap<Position, Block> {
     return allPositions().map { position -> Pair(position, initBlock()) }.toMap().toMutableMap()
-}
-
-fun initializeOnesBlocksMap(): MutableMap<Position, Block> {
-    return allPositions().map { position -> Pair(position, initOneBlock()) }.toMap().toMutableMap()
-}
-
-fun initializeFixedBlocksMap(): MutableMap<Position, Block> {
-    return allPositions().mapIndexed { index, position -> Pair(position, initBlock(index)) }.toMap().toMutableMap()
 }
 
 // private fun getEnumId(position: Position) = array[position.x + position.y * gridRows]
