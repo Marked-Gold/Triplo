@@ -11,21 +11,23 @@ import kotlin.random.Random
 // The board sits on a procedurally generated low-poly field: a jittered point
 // grid split into ~270 triangles of varied size and orientation. Each triangle
 // is drawn once as a plain white shape; its real colour is applied through
-// colorMul, so it can be re-tinted every frame for free (no shape rebuilds).
+// colorMul, so the pulse can re-tint it without rebuilding the shape.
 //
-// Idle, a slow brightness shimmer sways across the field. When a high-tier block
-// (81+) is forged, triggerBackgroundPulse lights a colour wave that propagates
-// facet-to-facet through the mesh from the triangle the block landed on: the
-// wave spreads along triangle adjacency (Dijkstra over shared edges), so it
-// genuinely travels through the triangles rather than sweeping the screen. The
-// colour also weakens the further it travels, so the edges glow only faintly.
+// While idle the field is fully static, so triLayer is a CachedContainer: the
+// ~270 triangles bake into a single texture and cost one draw call per frame.
+// When a high-tier block (81+) is forged, triggerBackgroundPulse lights a colour
+// wave that propagates facet-to-facet through the mesh from the triangle the
+// block landed on: the wave spreads along triangle adjacency (Dijkstra over
+// shared edges), so it genuinely travels through the triangles rather than
+// sweeping the screen. The colour also weakens the further it travels, so the
+// edges glow only faintly. The cache is dropped for the pulse's ~1.5s so the
+// wave renders live, then the base colours are restored and caching resumes.
 
 private class Tri(
     val view: View,
     val baseColor: RGBA,
     val cx: Double,
     val cy: Double,
-    val shimmerPhase: Double,
     val vertexIds: IntArray,
 ) {
     // Indices (into `tris`) of the triangles sharing an edge with this one.
@@ -42,12 +44,11 @@ private var pulseStart = 0.0
 private var pulseColor = Colors.WHITE
 private var pulseMaxDist = 0.0
 
-private const val waveSpeed = 650.0    // px/sec the colour wave travels through the mesh
-private const val pulseRise = 0.32     // sec a facet takes to reach full colour
-private const val pulseFall = 1.0      // sec it takes to settle back afterward
+private const val waveSpeed = 812.5    // px/sec the colour wave travels through the mesh
+private const val pulseRise = 0.256    // sec a facet takes to reach full colour
+private const val pulseFall = 0.8      // sec it takes to settle back afterward
 private const val pulseStrength = 0.9  // how far toward the pulse colour a facet goes
 private const val edgeFadeMin = 0.45   // colour strength left once the wave reaches the edge
-private const val shimmerAmp = 0.05    // ambient brightness sway (fraction)
 
 // Vertical gradient the facet base colours are sampled from: a calm dusty blue
 // at the top easing through warm cream into a soft terracotta at the bottom.
@@ -117,7 +118,9 @@ fun Stage.setupBackground() {
         }
     }
 
-    val triLayer = container { }
+    // Cached: while idle the ~270 triangles bake into one texture (one draw call).
+    // The pulse drops the cache for its duration — see the updater below.
+    val triLayer = cachedContainer { }
     val vStride = cols + 1
     fun vertexPoint(id: Int): Point = pts[id / vStride][id % vStride]
 
@@ -156,7 +159,7 @@ fun Stage.setupBackground() {
         val ny = ((gy - originY) / fieldH).coerceIn(0.0, 1.0)
         val base = baseColorAt(ny, rng)
         view.colorMul = base
-        tris += Tri(view, base, gx, gy, rng.nextDouble() * PI * 2.0, intArrayOf(i0, i1, i2))
+        tris += Tri(view, base, gx, gy, intArrayOf(i0, i1, i2))
     }
 
     for (r in 0 until rows) {
@@ -178,25 +181,34 @@ fun Stage.setupBackground() {
 
     buildAdjacency()
 
+    // Idle frames do nothing: the triangles keep their base colour and triLayer
+    // stays cached. Only an active pulse animates the facets — for its lifetime
+    // the cache is dropped so the wave renders live, then the base colours are
+    // restored and caching resumes.
     addUpdater { dt ->
         elapsed += dt.seconds
+        if (!pulseActive) return@addUpdater
+
         val pulseT = elapsed - pulseStart
-        if (pulseActive && pulseT > pulseMaxDist / waveSpeed + pulseRise + pulseFall) {
+        if (pulseT > pulseMaxDist / waveSpeed + pulseRise + pulseFall) {
+            // Pulse finished: settle every facet back to base and re-enable caching.
             pulseActive = false
+            for (t in tris) t.view.colorMul = t.baseColor
+            triLayer.cache = true
+            return@addUpdater
         }
+
+        // Pulse running: render the wave live (uncached).
+        triLayer.cache = false
         for (t in tris) {
-            // Slow ambient shimmer: a gentle brightness sway across the field.
-            val shimmer = 1.0 + sin(elapsed * 0.5 + t.shimmerPhase) * shimmerAmp
-            var color = t.baseColor.scaledRGB(shimmer)
-            if (pulseActive) {
-                val env = pulseEnvelope(pulseT - t.pulseDist / waveSpeed)
-                if (env > 0.0) {
-                    // The wave loses colour the further it has travelled, so the
-                    // facets near the merge glow brightest and the edges only faintly.
-                    val travelled = if (pulseMaxDist > 0.0) t.pulseDist / pulseMaxDist else 0.0
-                    val fade = 1.0 - travelled * (1.0 - edgeFadeMin)
-                    color = lerpColor(color, pulseColor, env * pulseStrength * fade)
-                }
+            var color = t.baseColor
+            val env = pulseEnvelope(pulseT - t.pulseDist / waveSpeed)
+            if (env > 0.0) {
+                // The wave loses colour the further it has travelled, so the
+                // facets near the merge glow brightest and the edges only faintly.
+                val travelled = if (pulseMaxDist > 0.0) t.pulseDist / pulseMaxDist else 0.0
+                val fade = 1.0 - travelled * (1.0 - edgeFadeMin)
+                color = lerpColor(color, pulseColor, env * pulseStrength * fade)
             }
             t.view.colorMul = color
         }

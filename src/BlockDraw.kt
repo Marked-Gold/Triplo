@@ -16,7 +16,6 @@ fun Container.drawBlock(
 ) {
     Napier.v("drawBlock at ${position.log()} with Number ${block.number.value}, IsSelected ${block.selection}")
     blocksMap[position] = addBlock(block).position(getXFromPosition(position), getYFromPosition(position))
-    addBlock(block).position(getXFromPosition(position), getYFromPosition(position))
 }
 
 fun Container.drawAllBlocks() {
