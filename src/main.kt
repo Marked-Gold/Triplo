@@ -84,9 +84,6 @@ var rocketsLoadedCount = ObservableProperty(startingRocketCount)
 var rocketSelection = RocketSelection()
 var rocketContainer: Container = Container()
 
-const val startingHighestTierReached = 3
-var highestTierReached = startingHighestTierReached
-
 var bombScaleNormal = 0.0
 var bombScaleSelected = 0.0
 var rocketScaleNormal = 0.0
@@ -565,7 +562,6 @@ fun Container.restart() {
     Napier.d("Running Restart Function...")
     resetIdleTimer()
     score.update(0)
-    highestTierReached = startingHighestTierReached
     bombsLoadedCount.update(startingBombCount)
     rocketsLoadedCount.update(startingRocketCount)
     blocksMap.values.forEach { it.removeFromParent() }

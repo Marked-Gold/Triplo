@@ -12,6 +12,9 @@ import kotlin.random.Random
 fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position>>>) =
     launchImmediately {
         startAnimating()
+        // One bomb is awarded for every block of 243 (tier FIVE) or higher created
+        // by this merge, regardless of whether that tier has been reached before.
+        var bombsEarned = 0
         animate {
             parallel {
                 Napier.v("Animating the blocks merging together")
@@ -35,6 +38,7 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                 mergeMap.forEach { (headPosition, valueAndMergePositions) ->
                     valueAndMergePositions.second.forEach { position -> deleteBlock(blocksMap[position]!!) }
                     val value = valueAndMergePositions.first
+                    if (value.ordinal >= Number.FIVE.ordinal) bombsEarned++
                     val newBlock = blocksMap[headPosition]!!.updateNumber(value).unselect().copy()
                     deleteBlock(blocksMap[headPosition]!!)
                     blocksMap[headPosition] = newBlock
@@ -83,13 +87,10 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
             }
             block {
                 stopAnimating()
-                val currentTier = findHighestTier()
-                Napier.d("Current highest tier: $currentTier. Highest tier reached: $highestTierReached")
-                if (currentTier > highestTierReached)
-                    {
-                        tryAddBombs(currentTier - highestTierReached)
-                        highestTierReached = currentTier
-                    }
+                if (bombsEarned > 0) {
+                    Napier.d("Merge created $bombsEarned block(s) of 243+, awarding $bombsEarned bomb(s)")
+                    tryAddBombs(bombsEarned)
+                }
                 checkGameOver()
             }
         }
