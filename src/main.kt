@@ -11,6 +11,7 @@ import korlibs.image.text.TextAlignment
 import korlibs.io.async.ObservableProperty
 import korlibs.io.async.launchImmediately
 import korlibs.io.file.std.*
+import korlibs.time.*
 import korlibs.math.geom.*
 import korlibs.math.geom.vector.*
 import kotlin.properties.Delegates
@@ -54,6 +55,19 @@ fun stopAnimating() {
     isAnimating = false
 }
 
+// Idle hint: when the board has no available moves but the player still holds a
+// bomb or rocket, the held power-up(s) jiggle after idleHintDelay seconds without
+// a move to signal that a power-up must be used to keep playing. The timer resets
+// on every board touch and re-fires every idleHintDelay seconds while still stuck.
+const val idleHintDelay = 6.0
+var idleTime = 0.0
+var nextIdleHintTime = idleHintDelay
+
+fun resetIdleTimer() {
+    idleTime = 0.0
+    nextIdleHintTime = idleHintDelay
+}
+
 var showingRestart: Boolean = false
 var restartPopupContainer: Container = Container()
 
@@ -86,6 +100,23 @@ var gameField = RoundRect(Size(0, 0), RectCorners(0))
 const val smallSelectionSize = 3
 const val mediumSelectionSize = 6
 const val largeSelectionSize = 18
+
+// One inventory cartridge slot: a white-bordered rounded rect rendered with
+// fastRoundRect. fastRoundRect is a GPU SDF shape, so it stays crisp at any
+// scale or sub-pixel offset, unlike roundRect which rasterizes to a texture
+// that blurs when the scene is upscaled to the device's native resolution.
+// Note: fastRoundRect corners are a ratio of the size (0..1), not pixels.
+fun Container.cartridgeSlot(fill: RGBA): Container =
+    container {
+        val w = cellSize * 0.4
+        val h = cellSize * 0.4
+        val border = cellSize / 24.0
+        val cornerRatio = 0.3
+        fastRoundRect(Size(w, h), RectCorners(cornerRatio), color = cartridgeBorderColor)
+        fastRoundRect(Size(w - border * 2, h - border * 2), RectCorners(cornerRatio), color = fill) {
+            xy(border, border)
+        }
+    }
 
 suspend fun main() =
     Korge(
@@ -135,6 +166,24 @@ suspend fun main() =
         Napier.d("Left indent = $leftIndent")
         topIndent = 128
 
+        // The grid is fixed in place; the score row and the power-up row are centred in
+        // the gaps above and below it. CENTER_NO_CLIP lets the visible screen extend past
+        // the 360x640 virtual area, so use actualVirtualBounds (the real screen, expressed
+        // in virtual coordinates) rather than the virtual height to find the screen edges.
+        val screenTop = views.actualVirtualBounds.top
+        val screenBottom = views.actualVirtualBounds.bottom
+        val fieldBottom = topIndent + fieldHeight
+
+        // Score row: the pause button, SCORE and BEST boxes share a vertical centre.
+        // The boxes (cellSize * 1.5 tall) are the tallest element and set the row height.
+        val scoreRowCenterY = (screenTop + topIndent) / 2.0
+        val scoreRowTop = scoreRowCenterY - (cellSize * 1.5) / 2.0
+
+        // Power-up row: bomb/rocket containers (cellSize * 2.5 tall) stacked above their
+        // cartridge strip (cellSize * 0.5 tall) with a 2px gap between the two.
+        val powerUpRowHeight = cellSize * 3.0 + 2.0
+        val powerUpRowTop = (fieldBottom + screenBottom) / 2.0 - powerUpRowHeight / 2.0
+
         gameField =
             roundRect(Size(fieldWidth, fieldHeight), RectCorners(5), fill = gameFieldColor) {
                 this.position(leftIndent, topIndent)
@@ -167,7 +216,8 @@ suspend fun main() =
                 val backgroundBlock = roundRect(Size(btnSize, btnSize), RectCorners(5), fill = restartAndScoreColor)
                 pauseIcon(btnSize * 0.6).centerOn(backgroundBlock)
                 alignLeftToLeftOf(gameField, cellSize * 0.5)
-                alignBottomToTopOf(gameField, cellSize * 0.75)
+                // Centre the (shorter) pause button on the score row's vertical centre.
+                y = scoreRowCenterY - btnSize / 2.0
                 onClick {
                     if (!showingRestart) {
                         unselectAllPowerUps()
@@ -191,7 +241,7 @@ suspend fun main() =
         val bgScore =
             roundRect(Size(cellSize * 2.5, cellSize * 1.5), RectCorners(5), fill = restartAndScoreColor) {
                 alignLeftToRightOf(restartBlock, cellSize)
-                alignBottomToTopOf(gameField, cellSize * 0.5)
+                y = scoreRowTop
             }
         text("SCORE", cellSize * 0.5, scoreTextColor, font) {
             centerXOn(bgScore)
@@ -211,7 +261,7 @@ suspend fun main() =
         val bgBest =
             roundRect(Size(cellSize * 2.5, cellSize * 1.5), RectCorners(5), fill = restartAndScoreColor) {
                 alignRightToRightOf(gameField, 12.0)
-                alignBottomToTopOf(gameField, cellSize * 0.5)
+                y = scoreRowTop
             }
         text("BEST", cellSize * 0.5, scoreTextColor, font) {
             centerXOn(bgBest)
@@ -235,7 +285,7 @@ suspend fun main() =
         bombContainer =
             container {
                 val bombBackground = roundRect(Size(cellSize * 2.5, cellSize * 2.5), RectCorners(10), fill = bombContainerColor)
-                alignTopToBottomOf(gameField, 18)
+                y = powerUpRowTop
                 alignLeftToLeftOf(gameField, fieldWidth / 8)
                 image(if (bombsLoadedCount.value > 0) loadedBombImg else emptyBombImg) {
                     size(80, 80)
@@ -244,6 +294,11 @@ suspend fun main() =
                 onClick {
                     if (bombsLoadedCount.value > 0 && !showingRestart) {
                         bombSelected = !bombSelected
+                        // Selecting the bomb cancels an in-progress rocket selection.
+                        if (bombSelected && rocketSelection.selected) {
+                            animatePowerUpSelection(rocketContainer, false)
+                            removeRocketSelection()
+                        }
                         animatePowerUpSelection(this, bombSelected)
                     }
                 }
@@ -257,88 +312,25 @@ suspend fun main() =
             }
 
         container {
-            alignTopToBottomOf(bombContainer, 2)
-            alignRightToRightOf(bombContainer)
-            alignLeftToLeftOf(bombContainer)
-
-            val emptyFill = emptyCartridgeColor
-            val loadedFill = loadedBombCartridgeColor
-
-            var cart1Fill = emptyFill
-            var cart2Fill = emptyFill
-            var cart3Fill = emptyFill
-            var cart4Fill = emptyFill
-            var cart5Fill = emptyFill
-
-            fun fillByBombCount() {
-                cart1Fill = if (bombsLoadedCount.value > 0) loadedFill else emptyFill
-                cart2Fill = if (bombsLoadedCount.value > 1) loadedFill else emptyFill
-                cart3Fill = if (bombsLoadedCount.value > 2) loadedFill else emptyFill
-                cart4Fill = if (bombsLoadedCount.value > 3) loadedFill else emptyFill
-                cart5Fill = if (bombsLoadedCount.value > 4) loadedFill else emptyFill
-            }
-
-            val strokeThickness = 1.5
-
             fun drawCartridges() {
-                val cart1 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart1Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToLeftOf(this)
-                    }
-                val cart2 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart2Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart1)
-                    }
-                val cart3 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart3Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart2)
-                    }
-                val cart4 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart4Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart3)
-                    }
-                val cart5 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart5Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart4)
-                    }
+                var prev: View? = null
+                for (i in 0 until maxBombCount) {
+                    val fill = if (bombsLoadedCount.value > i) loadedBombCartridgeColor else emptyCartridgeColor
+                    val slot = cartridgeSlot(fill)
+                    prev?.let { slot.alignLeftToRightOf(it, cellSize * 0.16) }
+                    prev = slot
+                }
             }
 
-            fillByBombCount()
             drawCartridges()
 
+            // Position the row only after the cartridges exist: aligning an empty
+            // container yields NaN coordinates and the row never renders.
+            centerXOn(bombContainer)
+            alignTopToBottomOf(bombContainer, 2)
+
             bombsLoadedCount.observe {
-                this.removeChildren()
-                fillByBombCount()
+                removeChildren()
                 drawCartridges()
             }
         }
@@ -348,7 +340,7 @@ suspend fun main() =
                 val rocketBackground = roundRect(Size(cellSize * 2.5, cellSize * 2.5), RectCorners(10), fill = bombContainerColor)
                 val rocketWidth = 96
                 val rocketHeight = 96
-                alignTopToBottomOf(gameField, 18)
+                y = powerUpRowTop
                 alignRightToRightOf(gameField, fieldWidth / 8)
                 image(if (rocketsLoadedCount.value > 0) loadedRocketImg else emptyRocketImg) {
                     size(rocketWidth, rocketHeight)
@@ -357,6 +349,11 @@ suspend fun main() =
                 onClick {
                     if (rocketsLoadedCount.value > 0 && !showingRestart) {
                         rocketSelection.toggleSelect()
+                        // Selecting the rocket cancels a selected bomb.
+                        if (rocketSelection.selected && bombSelected) {
+                            bombSelected = false
+                            animatePowerUpSelection(bombContainer, false)
+                        }
                         animatePowerUpSelection(this, rocketSelection.selected)
                         if (!rocketSelection.selected) removeRocketSelection()
                     }
@@ -371,88 +368,25 @@ suspend fun main() =
             }
 
         container {
-            alignTopToBottomOf(rocketContainer, 2)
-            alignRightToRightOf(rocketContainer)
-            alignLeftToLeftOf(rocketContainer)
-
-            val emptyFill = emptyCartridgeColor
-            val loadedFill = loadedRocketCartridgeColor
-
-            var cart1Fill = emptyFill
-            var cart2Fill = emptyFill
-            var cart3Fill = emptyFill
-            var cart4Fill = emptyFill
-            var cart5Fill = emptyFill
-
-            fun fillByRocketCount() {
-                cart1Fill = if (rocketsLoadedCount.value > 0) loadedFill else emptyFill
-                cart2Fill = if (rocketsLoadedCount.value > 1) loadedFill else emptyFill
-                cart3Fill = if (rocketsLoadedCount.value > 2) loadedFill else emptyFill
-                cart4Fill = if (rocketsLoadedCount.value > 3) loadedFill else emptyFill
-                cart5Fill = if (rocketsLoadedCount.value > 4) loadedFill else emptyFill
-            }
-
-            val strokeThickness = 1.5
-
             fun drawCartridges() {
-                val cart1 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart1Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToLeftOf(this)
-                    }
-                val cart2 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart2Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart1)
-                    }
-                val cart3 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart3Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart2)
-                    }
-                val cart4 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart4Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart3)
-                    }
-                val cart5 =
-                    roundRect(
-                        Size(cellSize / 2.0, cellSize * 0.5),
-                        RectCorners(5),
-                        fill = cart5Fill,
-                        stroke = Colors.WHITE,
-                        strokeThickness = strokeThickness,
-                    ) {
-                        alignLeftToRightOf(cart4)
-                    }
+                var prev: View? = null
+                for (i in 0 until maxRocketCount) {
+                    val fill = if (rocketsLoadedCount.value > i) loadedRocketCartridgeColor else emptyCartridgeColor
+                    val slot = cartridgeSlot(fill)
+                    prev?.let { slot.alignLeftToRightOf(it, cellSize * 0.16) }
+                    prev = slot
+                }
             }
 
-            fillByRocketCount()
             drawCartridges()
 
+            // Position the row only after the cartridges exist: aligning an empty
+            // container yields NaN coordinates and the row never renders.
+            centerXOn(rocketContainer)
+            alignTopToBottomOf(rocketContainer, 2)
+
             rocketsLoadedCount.observe {
-                this.removeChildren()
-                fillByRocketCount()
+                removeChildren()
                 drawCartridges()
             }
         }
@@ -475,6 +409,17 @@ suspend fun main() =
         touch {
             end { handleUp(it.global) }
         }
+
+        // Idle hint loop: count up time since the last board touch and, once the
+        // board is stuck with no available moves, jiggle any held power-up.
+        addUpdater { dt ->
+            if (isAnimating || showingRestart) return@addUpdater
+            idleTime += dt.seconds
+            if (idleTime >= nextIdleHintTime) {
+                nextIdleHintTime += idleHintDelay
+                checkIdleHint()
+            }
+        }
 }
 
 fun Stage.unselectAllPowerUps() {
@@ -489,69 +434,7 @@ fun Stage.unselectAllPowerUps() {
         }
 }
 
-fun Container.showGameOver(onGameOver: () -> Unit) =
-    container {
-        showingRestart = true
-        Napier.d("Showing Restart Container...")
-
-        fun clearPopup() {
-            this@container.removeFromParent()
-        }
-
-        fun restart() {
-            clearPopup()
-            onGameOver()
-        }
-
-        val restartBackground =
-            roundRect(Size(fieldWidth, fieldHeight), RectCorners(5), fill = grayedGameFieldColor) {
-                centerXOn(gameField)
-                centerYOn(gameField)
-            }
-        val bgRestartContainer =
-            container {
-                roundRect(Size(fieldWidth / 2, fieldHeight / 2), RectCorners(25), fill = pauseScreenBlockColor) {
-                    centerXOn(restartBackground)
-                    (restartBackground)
-                }
-                text("Restarto", 30.0, RGBA(0, 0, 0), font) {
-                    centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, 20.0)
-
-                    alignment = TextAlignment.MIDDLE_CENTER
-                    onOver { color = RGBA(90, 90, 90) }
-                    onOut { color = RGBA(0, 0, 0) }
-                    onDown { color = RGBA(120, 120, 120) }
-                    onUp { color = RGBA(120, 120, 120) }
-                }
-                onUp {
-                    Napier.d("Restart Button - YES Clicked")
-                    showingRestart = false
-                    restart()
-                    clearPopup()
-                }
-                onClick {
-                    Napier.d("Restart Button - YES Clicked")
-                    showingRestart = false
-                    restart()
-                    clearPopup()
-                }
-            }
-        val gameOverText =
-            container {
-                alignBottomToTopOf(bgRestartContainer, cellSize * 1.0)
-                centerXOn(bgRestartContainer)
-                text("Out of moves") {
-                    alignment = TextAlignment.MIDDLE_CENTER
-                    textSize = 50.0
-                    color = RGBA(255, 100, 90)
-                }
-            }
-    }
-
-
-
-fun Container.showRestart(onRestart: () -> Unit) =
+fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
     container {
         showingRestart = true
         Napier.d("Showing Restart Container...")
@@ -562,10 +445,6 @@ fun Container.showRestart(onRestart: () -> Unit) =
         }
 
         fun copyBlocksToClipboard() {
-            val allPoses = allPositions()
-
-            Napier.d("All positions: $allPoses")
-
             var gridString = ""
             for (j in 0 until gridRows) {
                 for (i in 0 until gridColumns) {
@@ -577,48 +456,25 @@ fun Container.showRestart(onRestart: () -> Unit) =
                 gridString = gridString + "\n"
             }
 
-            Napier.d("Copying blocks to clipboard...")
-
-            Napier.d("GRID: $gridString")
-
-            val scoreString = score.value.toString()
-
-            // convert score string into emojis
-            var scoreEmojiString = scoreString.map {
-                Napier.d("Converting $it to emoji")
-                when (it) {
-                    '0' -> "0⃣"
-                    '1' -> "1⃣"
-                    '2' -> "2⃣"
-                    '3' -> "3⃣"
-                    '4' -> "4⃣"
-                    '5' -> "5⃣"
-                    '6' -> "6⃣"
-                    '7' -> "7⃣"
-                    '8' -> "8⃣"
-                    '9' -> "9⃣"
-                    else -> ""
-                }
-            }.joinToString("")
-
-            Napier.d("SCORE: $scoreString")
-            Napier.d("SCORE EMOJI: $scoreEmojiString")
-
-            val clipboardContent = scoreEmojiString + "\n" + gridString + "https://playtrillium.com"
+            // Emoji grid first, then a plain-text score line.
+            val clipboardContent = gridString + "I scored ${score.value} trillium.ing"
 
             Napier.d("Clipboard Content:\n $clipboardContent")
-            // val clipboard = views.clipboard
-            // clipboard.setContents(gridString + "\n" + scoreEmojiString)
+            stage?.views?.copyTextToClipboard(clipboardContent)
         }
 
         val restartBackground =
             roundRect(Size(fieldWidth, fieldHeight), RectCorners(5), fill = grayedGameFieldColor) {
                 centerXOn(gameField)
                 centerYOn(gameField)
-                onClick {
-                    Napier.d("Restart Button - NO Clicked")
-                    showingRestart = false
-                    this@container.removeFromParent()
+                // The pause screen can be dismissed by tapping the backdrop; the game over
+                // screen cannot, because there is no game left to return to.
+                if (!isGameOver) {
+                    onClick {
+                        Napier.d("Restart Button - NO Clicked")
+                        showingRestart = false
+                        this@container.removeFromParent()
+                    }
                 }
             }
 
@@ -683,10 +539,31 @@ fun Container.showRestart(onRestart: () -> Unit) =
                     copyBlocksToClipboard()
                 }
             }
+
+        // On game over, add a heading above the RESTART button. Otherwise this is the pause screen.
+        if (isGameOver) {
+            val headingText = "GAME OVER"
+            val headingGlyphs = mutableListOf<Text>()
+            val gameOverHeading =
+                container {
+                    // Faux-bold: clear_sans.fnt is a single-weight bitmap font, so stamp the
+                    // text twice with a 1px offset to thicken the strokes.
+                    for (offset in listOf(0.0, 1.0)) {
+                        headingGlyphs += text(headingText, 20.0, RGBA(0, 0, 0), font) {
+                            alignment = TextAlignment.MIDDLE_CENTER
+                            x = offset
+                        }
+                    }
+                    centerXOn(restartBackground)
+                    alignBottomToTopOf(bgRestartContainer, cellSize * 0.75)
+                }
+            gameOverHeading.animateTypewriter(headingGlyphs, headingText)
+        }
     }
 
 fun Container.restart() {
     Napier.d("Running Restart Function...")
+    resetIdleTimer()
     score.update(0)
     highestTierReached = startingHighestTierReached
     bombsLoadedCount.update(startingBombCount)

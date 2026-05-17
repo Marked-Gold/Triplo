@@ -46,6 +46,7 @@ fun getPositionFromPoint(point: Point): Position? {
 }
 
 fun Stage.handleDown(point: Point)  {
+    resetIdleTimer()
     when {
         isAnimating -> return
         showingRestart -> return
@@ -80,6 +81,7 @@ fun Stage.handleHover(point: Point)  {
 }
 
 fun Stage.handleUp(point: Point)  {
+    resetIdleTimer()
     isPressed = false
     when {
         isAnimating ||

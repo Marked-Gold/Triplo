@@ -26,6 +26,9 @@ val bombContainerColor = Colors["#e6e6e640"]
 
 val emptyCartridgeColor = Colors["#e6e6e6A0"]
 
+// Semi-transparent so the cartridge outline reads as a soft border, not a glaring frame.
+val cartridgeBorderColor = Colors["#ffffff99"]
+
 val loadedBombCartridgeColor =  Colors["#1f3079"]
 
 val loadedRocketCartridgeColor =  Colors["#F87855"]

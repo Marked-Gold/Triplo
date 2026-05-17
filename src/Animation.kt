@@ -4,6 +4,7 @@ import korlibs.korge.tween.*
 import korlibs.korge.view.*
 import korlibs.io.async.launchImmediately
 import korlibs.math.interpolation.*
+import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -89,15 +90,26 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                         tryAddBombs(currentTier - highestTierReached)
                         highestTierReached = currentTier
                     }
-                if (!hasAvailableMoves() && bombsLoadedCount.value == 0 && rocketsLoadedCount.value == 0) {
-                    Napier.d("Game Over!")
-                    showGameOver { restart() }
-                    // Show an interstitial once the round is over.
-                    launchImmediately { Ads.showInterstitial() }
-                }
+                checkGameOver()
             }
         }
     }
+
+// Ends the game when the board is fully stuck: no available moves and no
+// power-ups left to break the deadlock. Must run after every board-changing
+// animation (merge, bomb, rocket) — any of them can leave the board dead.
+fun Stage.checkGameOver() {
+    if (!hasAvailableMoves() && bombsLoadedCount.value == 0 && rocketsLoadedCount.value == 0) {
+        Napier.d("Game Over!")
+        showRestart(isGameOver = true) {
+            // Only show the interstitial once the player chooses to restart.
+            launchImmediately {
+                Ads.showInterstitial()
+                restart()
+            }
+        }
+    }
+}
 
 // Not used any more but left it in case of future changes
 fun Animator.animateGravity() {
@@ -166,6 +178,21 @@ fun Stage.animatePowerUpSelection(
     }
 }
 
+// Reveals the heading one character at a time, typewriter style. The glyph list holds
+// the stacked faux-bold copies of the same text; they are typed out in lockstep.
+fun View.animateTypewriter(glyphs: List<Text>, fullText: String) {
+    val stage = stage ?: return
+    glyphs.forEach { it.text = "" }
+    stage.launchImmediately {
+        delay(200L)
+        for (i in 1..fullText.length) {
+            val visible = fullText.substring(0, i)
+            glyphs.forEach { it.text = visible }
+            delay(80L)
+        }
+    }
+}
+
 fun Stage.generateNewBlocks() =
     launchImmediately {
         val newPositionBlocks = generateBlocksForEmptyPositions()
@@ -224,6 +251,7 @@ fun Stage.animateBomb() =
         }
         generateNewBlocks()
         stopAnimating()
+        checkGameOver()
     }
 
 fun Stage.animateRocket(selection: RocketSelection) =
@@ -256,9 +284,38 @@ fun Stage.animateRocket(selection: RocketSelection) =
                     }
                 }
                 stopAnimating()
+                checkGameOver()
             }
         }
     }
+
+// Quick decaying horizontal shake. Used to nudge the player toward an unused
+// power-up when the board is stuck and one must be spent to keep playing.
+// `mirror` flips the shake direction so the bomb and rocket wobble symmetrically
+// inward/outward rather than in lockstep.
+fun Stage.jigglePowerUp(container: Container, mirror: Boolean = false) =
+    launchImmediately {
+        val baseX = container.x
+        val dir = if (mirror) -1.0 else 1.0
+        animate {
+            for (offset in listOf(-7.0, 7.0, -5.0, 5.0, -3.0, 3.0, 0.0)) {
+                tween(
+                    container::x[baseX + offset * dir],
+                    time = 0.1.seconds,
+                    easing = Easing.LINEAR,
+                )
+            }
+        }
+    }
+
+// Called once every idleHintDelay seconds of inactivity. If the board has no
+// available moves the player must spend a power-up to continue, so any held
+// bomb/rocket that is not already selected jiggles to draw attention to it.
+fun Stage.checkIdleHint() {
+    if (isAnimating || showingRestart || hasAvailableMoves()) return
+    if (bombsLoadedCount.value > 0 && !bombSelected) jigglePowerUp(bombContainer)
+    if (rocketsLoadedCount.value > 0 && !rocketSelection.selected) jigglePowerUp(rocketContainer, mirror = true)
+}
 
 fun Stage.animateSelectedBlock(
     maybeBlock: Block?,
