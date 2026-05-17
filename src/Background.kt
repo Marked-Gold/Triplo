@@ -181,11 +181,23 @@ fun Stage.setupBackground() {
 
     buildAdjacency()
 
-    // Idle frames do nothing: the triangles keep their base colour and triLayer
-    // stays cached. Only an active pulse animates the facets — for its lifetime
-    // the cache is dropped so the wave renders live, then the base colours are
-    // restored and caching resumes.
+    // The cache is a GPU framebuffer with no CPU-side copy, so an Android surface
+    // loss (backgrounding, an app switch) wipes it and the background renders
+    // blank. The GL context version bumps whenever that happens — watch it and
+    // force the cache to re-bake so the field reappears on resume.
+    var lastContextVersion = -1
+
+    // Idle frames otherwise do nothing: the triangles keep their base colour and
+    // triLayer stays cached. Only an active pulse animates the facets — for its
+    // lifetime the cache is dropped so the wave renders live, then the base
+    // colours are restored and caching resumes.
     addUpdater { dt ->
+        val contextVersion = views.ag.contextVersion
+        if (contextVersion != lastContextVersion) {
+            lastContextVersion = contextVersion
+            triLayer.invalidateRender()
+        }
+
         elapsed += dt.seconds
         if (!pulseActive) return@addUpdater
 

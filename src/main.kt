@@ -60,7 +60,7 @@ fun stopAnimating() {
 // bomb or rocket, the held power-up(s) jiggle after idleHintDelay seconds without
 // a move to signal that a power-up must be used to keep playing. The timer resets
 // on every board touch and re-fires every idleHintDelay seconds while still stuck.
-const val idleHintDelay = 6.0
+const val idleHintDelay = 5.0
 var idleTime = 0.0
 var nextIdleHintTime = idleHintDelay
 
