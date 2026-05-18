@@ -1,3 +1,4 @@
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import korlibs.korge.gradle.*
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import java.util.Properties
@@ -9,7 +10,7 @@ plugins {
 korge {
     id = "com.allmeatgames.triplo"
     name = "Triplo"
-    version = "1.0.0"
+    version = "1.0.1"
 
     orientation = Orientation.PORTRAIT
 
@@ -185,4 +186,17 @@ pluginManager.withPlugin("com.android.application") {
     release.keyAlias = props.getProperty("keyAlias")
     release.keyPassword = props.getProperty("keyPassword")
     android.buildTypes.getByName("release").signingConfig = release
+}
+
+// Android versionCode. Every Google Play upload (across ALL tracks — internal, closed,
+// production) must use a strictly higher versionCode than the last, so bump this on each
+// release. KorGE sets versionName from korge.version above but leaves versionCode alone; the
+// AGP variant API sets it here, which binds late enough to be authoritative.
+val androidVersionCode = 2
+
+pluginManager.withPlugin("com.android.application") {
+    extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
+        .onVariants { variant ->
+            variant.outputs.forEach { it.versionCode.set(androidVersionCode) }
+        }
 }

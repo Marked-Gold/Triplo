@@ -14,7 +14,7 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 | Studio | AllMeat Games — allmeatgames.com |
 | Marketing / redirect domain | triplo.club |
 | Developer-account email | mark@allmeatgames.com |
-| App version | 1.0.0 (versionCode 1) |
+| App version | 1.0.1 (versionCode 2) — bump `androidVersionCode` in `build.gradle.kts` for every Play upload |
 | Android AdMob app ID | `ca-app-pub-7742910323184344~4789526938` |
 | Android interstitial ad unit | `ca-app-pub-7742910323184344/7551421648` |
 | Upload keystore | `triplo-upload-key.jks` — gitignored; file + password stored in 1Password; alias `triplo-upload` |
