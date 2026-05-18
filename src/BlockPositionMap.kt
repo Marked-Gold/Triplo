@@ -147,28 +147,28 @@ fun determineMerge(positionList: MutableList<Position>): MutableMap<Position, Pa
         }
     when (pattern) {
         Pattern.TRIPLE -> {
-            val last = positionList.removeLast()
+            val last = positionList.removeAt(positionList.lastIndex)
             mergeMap[last] = Pair(nextNumber, positionList)
         }
         Pattern.I4 -> {
-            val last = positionList.removeLast()
-            val secondLast = positionList.removeLast()
+            val last = positionList.removeAt(positionList.lastIndex)
+            val secondLast = positionList.removeAt(positionList.lastIndex)
             mergeMap[secondLast] = Pair(nextNumber, positionList.subList(0, 1).toMutableList())
             mergeMap[last] = Pair(nextNumber, positionList.subList(1, 2).toMutableList())
         }
         Pattern.I5 -> {
-            val last = positionList.removeLast()
+            val last = positionList.removeAt(positionList.lastIndex)
             mergeMap[last] = Pair(nextNumber.next(), positionList.toMutableList())
         }
         Pattern.I6 -> {
-            val last = positionList.removeLast()
-            val secondLast = positionList.removeLast()
+            val last = positionList.removeAt(positionList.lastIndex)
+            val secondLast = positionList.removeAt(positionList.lastIndex)
             mergeMap[secondLast] = Pair(nextNumber, positionList.subList(0, 2).toMutableList())
             mergeMap[last] = Pair(nextNumber, positionList.subList(2, 4).toMutableList())
         }
         Pattern.I7 -> {
-            val last = positionList.removeLast()
-            val secondLast = positionList.removeLast()
+            val last = positionList.removeAt(positionList.lastIndex)
+            val secondLast = positionList.removeAt(positionList.lastIndex)
             mergeMap[secondLast] = Pair(nextNumber, positionList.subList(0, 2).toMutableList())
             mergeMap[last] = Pair(nextNumber.next(), positionList.subList(2, 5).toMutableList())
         }
@@ -222,7 +222,7 @@ fun determineMerge(positionList: MutableList<Position>): MutableMap<Position, Pa
             }
         }
         else -> {
-            val last = positionList.removeLast()
+            val last = positionList.removeAt(positionList.lastIndex)
             mergeMap[last] = Pair(nextNumber, positionList)
         }
     }

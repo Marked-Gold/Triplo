@@ -192,7 +192,7 @@ pluginManager.withPlugin("com.android.application") {
 // production) must use a strictly higher versionCode than the last, so bump this on each
 // release. KorGE sets versionName from korge.version above but leaves versionCode alone; the
 // AGP variant API sets it here, which binds late enough to be authoritative.
-val androidVersionCode = 2
+val androidVersionCode = 3
 
 pluginManager.withPlugin("com.android.application") {
     extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
