@@ -107,7 +107,7 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                 val head = topHead
                 if (tier != null && head != null) {
                     triggerBackgroundPulse(
-                        tier.color,
+                        tier,
                         getXFromPosition(head) + cellSize / 2.0,
                         getYFromPosition(head) + cellSize / 2.0,
                     )

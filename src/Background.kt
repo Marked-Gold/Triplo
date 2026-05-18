@@ -25,11 +25,17 @@ import kotlin.random.Random
 
 private class Tri(
     val view: View,
-    val baseColor: RGBA,
     val cx: Double,
     val cy: Double,
     val vertexIds: IntArray,
+    // Vertical position 0..1 down the field and the per-facet brightness jitter:
+    // together they let the base colour be recomputed when the gradient shifts.
+    val ny: Double,
+    val jitter: Double,
 ) {
+    // The facet's resting colour, sampled from the vertical gradient. It changes
+    // when a high-tier block raises the gradient's bottom colour.
+    var baseColor: RGBA = Colors.WHITE
     // Indices (into `tris`) of the triangles sharing an edge with this one.
     val neighbors = mutableListOf<Int>()
     // Graph distance from the current pulse's origin facet, in pixels.
@@ -44,6 +50,22 @@ private var pulseStart = 0.0
 private var pulseColor = Colors.WHITE
 private var pulseMaxDist = 0.0
 
+// The vertical gradient's bottom colour tracks the highest block tier forged so
+// far: it opens green (the 27 tier) and climbs to purple (81), red (243), and
+// beyond. Each high-tier merge hands its tier to the pulse wave, which carries
+// the gradient shift facet-to-facet as it travels.
+private var gradBotTier = Number.THREE
+private var gradBotColor = Number.THREE.color
+
+// While a pulse runs, these hold the gradient bottom colour before and after the
+// shift; pulseChangesGrad is false when the merge did not out-rank the gradient.
+private var pulseGradFrom = gradBotColor
+private var pulseGradTo = gradBotColor
+private var pulseChangesGrad = false
+
+// Set by resetBackgroundGradient so the updater re-bakes the (idle) cache.
+private var pendingRecache = false
+
 private const val waveSpeed = 812.5    // px/sec the colour wave travels through the mesh
 private const val pulseRise = 0.256    // sec a facet takes to reach full colour
 private const val pulseFall = 0.8      // sec it takes to settle back afterward
@@ -51,10 +73,10 @@ private const val pulseStrength = 0.9  // how far toward the pulse colour a face
 private const val edgeFadeMin = 0.45   // colour strength left once the wave reaches the edge
 
 // Vertical gradient the facet base colours are sampled from: a calm dusty blue
-// at the top easing through warm cream into a soft terracotta at the bottom.
+// at the top easing through warm cream into gradBotColor at the bottom — that
+// bottom colour climbs the block tiers as the game progresses.
 private val gradTop = RGBA(150, 178, 196)
 private val gradMid = RGBA(244, 230, 212)
-private val gradBot = RGBA(230, 165, 138)
 
 private fun RGBA.scaledRGB(f: Double): RGBA =
     RGBA(
@@ -74,12 +96,12 @@ private fun lerpColor(a: RGBA, b: RGBA, t: Double): RGBA {
     )
 }
 
-private fun baseColorAt(ny: Double, rng: Random): RGBA {
+private fun baseColorAt(ny: Double, jitter: Double, gradBot: RGBA): RGBA {
     val g =
         if (ny < 0.5) lerpColor(gradTop, gradMid, ny * 2.0)
         else lerpColor(gradMid, gradBot, (ny - 0.5) * 2.0)
     // Per-facet brightness jitter is what gives the low-poly faceted look.
-    return g.scaledRGB(1.0 + (rng.nextDouble() * 2.0 - 1.0) * 0.14)
+    return g.scaledRGB(jitter)
 }
 
 private fun pulseEnvelope(lp: Double): Double =
@@ -157,9 +179,11 @@ fun Stage.setupBackground() {
             }.xy(minX, minY)
 
         val ny = ((gy - originY) / fieldH).coerceIn(0.0, 1.0)
-        val base = baseColorAt(ny, rng)
-        view.colorMul = base
-        tris += Tri(view, base, gx, gy, intArrayOf(i0, i1, i2))
+        val jitter = 1.0 + (rng.nextDouble() * 2.0 - 1.0) * 0.14
+        val tri = Tri(view, gx, gy, intArrayOf(i0, i1, i2), ny, jitter)
+        tri.baseColor = baseColorAt(ny, jitter, gradBotColor)
+        view.colorMul = tri.baseColor
+        tris += tri
     }
 
     for (r in 0 until rows) {
@@ -198,14 +222,29 @@ fun Stage.setupBackground() {
             triLayer.invalidateRender()
         }
 
+        // A restart reset the gradient while idle (or mid-pulse): re-bake the cache.
+        if (pendingRecache) {
+            pendingRecache = false
+            triLayer.cache = true
+            triLayer.invalidateRender()
+        }
+
         elapsed += dt.seconds
         if (!pulseActive) return@addUpdater
 
         val pulseT = elapsed - pulseStart
         if (pulseT > pulseMaxDist / waveSpeed + pulseRise + pulseFall) {
-            // Pulse finished: settle every facet back to base and re-enable caching.
+            // Pulse finished: commit any gradient shift it carried, settle every
+            // facet onto its (possibly new) base colour and re-enable caching.
             pulseActive = false
-            for (t in tris) t.view.colorMul = t.baseColor
+            if (pulseChangesGrad) {
+                gradBotColor = pulseGradTo
+                pulseChangesGrad = false
+            }
+            for (t in tris) {
+                t.baseColor = baseColorAt(t.ny, t.jitter, gradBotColor)
+                t.view.colorMul = t.baseColor
+            }
             triLayer.cache = true
             return@addUpdater
         }
@@ -213,14 +252,25 @@ fun Stage.setupBackground() {
         // Pulse running: render the wave live (uncached).
         triLayer.cache = false
         for (t in tris) {
-            var color = t.baseColor
-            val env = pulseEnvelope(pulseT - t.pulseDist / waveSpeed)
+            val lp = pulseT - t.pulseDist / waveSpeed
+            // The wave front carries the new gradient bottom colour: once it
+            // reaches a facet, that facet's base eases from the old gradient to
+            // the new one over the same window as the colour flash.
+            val curBase =
+                if (!pulseChangesGrad) t.baseColor
+                else lerpColor(
+                    baseColorAt(t.ny, t.jitter, pulseGradFrom),
+                    baseColorAt(t.ny, t.jitter, pulseGradTo),
+                    (lp / (pulseRise + pulseFall)).coerceIn(0.0, 1.0),
+                )
+            var color = curBase
+            val env = pulseEnvelope(lp)
             if (env > 0.0) {
                 // The wave loses colour the further it has travelled, so the
                 // facets near the merge glow brightest and the edges only faintly.
                 val travelled = if (pulseMaxDist > 0.0) t.pulseDist / pulseMaxDist else 0.0
                 val fade = 1.0 - travelled * (1.0 - edgeFadeMin)
-                color = lerpColor(color, pulseColor, env * pulseStrength * fade)
+                color = lerpColor(curBase, pulseColor, env * pulseStrength * fade)
             }
             t.view.colorMul = color
         }
@@ -255,12 +305,34 @@ private fun buildAdjacency() {
 
 // Called when a merge forges an 81-tier (or higher) block. Lights a colour wave
 // that travels facet-to-facet through the mesh, starting from the triangle
-// nearest (centerX, centerY) — the spot the block was made.
-fun triggerBackgroundPulse(color: RGBA, centerX: Double, centerY: Double) {
+// nearest (centerX, centerY) — the spot the block was made. When the forged
+// tier out-ranks the gradient's current bottom tier, the wave also carries the
+// gradient's bottom colour up to that tier as it travels.
+fun triggerBackgroundPulse(tier: Number, centerX: Double, centerY: Double) {
     if (tris.isEmpty()) return
-    pulseColor = color
+
+    // A merge landed before the previous pulse settled: commit whatever gradient
+    // shift it was still carrying so this pulse starts from the right base.
+    if (pulseActive && pulseChangesGrad) {
+        gradBotColor = pulseGradTo
+        for (t in tris) t.baseColor = baseColorAt(t.ny, t.jitter, gradBotColor)
+    }
+
+    pulseColor = tier.color
     pulseStart = elapsed
     pulseActive = true
+
+    // The gradient bottom only ever climbs: a merge shifts it only when its tier
+    // out-ranks the tier the gradient currently shows.
+    pulseGradFrom = gradBotColor
+    if (tier.ordinal > gradBotTier.ordinal) {
+        gradBotTier = tier
+        pulseGradTo = tier.color
+        pulseChangesGrad = true
+    } else {
+        pulseGradTo = gradBotColor
+        pulseChangesGrad = false
+    }
 
     // The wave's origin facet: the triangle closest to where the block landed.
     var source = 0
@@ -305,4 +377,20 @@ fun triggerBackgroundPulse(color: RGBA, centerX: Double, centerY: Double) {
         if (d > maxDist) maxDist = d
     }
     pulseMaxDist = maxDist
+}
+
+// Restores the gradient to its opening state (gray -> green) for a new game.
+fun resetBackgroundGradient() {
+    gradBotTier = Number.THREE
+    gradBotColor = Number.THREE.color
+    pulseActive = false
+    pulseChangesGrad = false
+    pulseGradFrom = gradBotColor
+    pulseGradTo = gradBotColor
+    for (t in tris) {
+        t.baseColor = baseColorAt(t.ny, t.jitter, gradBotColor)
+        t.view.colorMul = t.baseColor
+    }
+    // The updater owns the cache; have it re-bake on the next frame.
+    pendingRecache = true
 }
