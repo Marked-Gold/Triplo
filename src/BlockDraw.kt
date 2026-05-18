@@ -52,6 +52,7 @@ fun Stage.unsuccessfulShape() {
 }
 
 fun Stage.successfulShape() {
+    Haptics.success()
     if (hoveredPositions.size >= rocketPowerUpLength) tryAddRockets(1)
     val pattern = determinePattern(hoveredPositions.toMutableList())
     val scoredPoints = determineScore(hoveredPositions.toMutableList())
@@ -121,6 +122,7 @@ fun Stage.drawRocketSelection(maybePosition: Position?) {
         (rocketSelection.firstPosition == null) -> {
             rocketSelection.selectFirst(maybePosition)
             updateBlock(blocksMap[maybePosition]!!.selectRocket(), maybePosition)
+            Haptics.tap()
         }
         (rocketSelection.firstPosition == maybePosition) -> {
             rocketSelection.unselectFirst()
@@ -128,6 +130,7 @@ fun Stage.drawRocketSelection(maybePosition: Position?) {
         }
         (rocketSelection.secondPosition == null) -> {
             rocketSelection.selectSecond(maybePosition)
+            Haptics.success()
             animateRocket(rocketSelection.copy())
             removeRocket()
             rocketSelection.unselect()

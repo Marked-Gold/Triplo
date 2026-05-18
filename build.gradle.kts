@@ -27,6 +27,8 @@ korge {
     // --- AdMob (Google Mobile Ads) ---
     // Required so the ads SDK can fetch ads.
     androidPermission("android.permission.INTERNET")
+    // Lets the game play haptic feedback through the system Vibrator (see src@android/HapticsAndroid.kt).
+    androidPermission("android.permission.VIBRATE")
     // AdMob application id for the production Android app.
     androidManifestApplicationChunk(
         "<meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" " +

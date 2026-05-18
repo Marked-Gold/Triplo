@@ -72,6 +72,9 @@ fun resetIdleTimer() {
 var showingRestart: Boolean = false
 var restartPopupContainer: Container = Container()
 
+/** Storage key for the haptics on/off preference. */
+const val hapticsEnabledKey = "hapticsEnabled"
+
 const val startingBombCount = 1
 const val maxBombCount = 5
 var bombsLoadedCount = ObservableProperty(startingBombCount)
@@ -130,12 +133,18 @@ suspend fun main() =
         // Wire up interstitial ads (real on Android, no-op elsewhere) and start preloading one.
         views.installPlatformAds()
 
+        // Wire up haptic feedback (real on Android/iOS, no-op elsewhere).
+        views.installPlatformHaptics()
+
         // Triangle art plus slowly drifting glow orbs; also wires up the colour
         // wash that fires when a high-tier block is forged. See Background.kt.
         setupBackground()
 
         val storage = views.storage
         best.update(storage.getOrNull("best")?.toInt() ?: 0)
+
+        // Restore the haptics on/off preference (defaults to on); toggled from the pause menu.
+        Haptics.enabled = storage.getOrNull(hapticsEnabledKey)?.toBoolean() ?: true
 
         score.observe {
             if (it > best.value) best.update(it)
@@ -283,6 +292,7 @@ suspend fun main() =
                 onClick {
                     if (bombsLoadedCount.value > 0 && !showingRestart && tutorialAllowsBombTap()) {
                         bombSelected = !bombSelected
+                        if (bombSelected) Haptics.tap()
                         // Selecting the bomb cancels an in-progress rocket selection.
                         if (bombSelected && rocketSelection.selected) {
                             animatePowerUpSelection(rocketContainer, false)
@@ -332,6 +342,7 @@ suspend fun main() =
                 onClick {
                     if (rocketsLoadedCount.value > 0 && !showingRestart && tutorialAllowsRocketTap()) {
                         rocketSelection.toggleSelect()
+                        if (rocketSelection.selected) Haptics.tap()
                         // Selecting the rocket cancels a selected bomb.
                         if (rocketSelection.selected && bombSelected) {
                             bombSelected = false
@@ -459,6 +470,22 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             stage?.views?.copyTextToClipboard(clipboardContent)
         }
 
+        // Tapping anywhere outside the menu buttons resumes the game. The dark backdrop below
+        // only covers the board, so this invisible full-screen catcher sits behind it to also
+        // pick up taps above and below the grid (the score and power-up rows). The game over
+        // screen has no game left to return to, so it gets no catcher.
+        if (!isGameOver) {
+            solidRect(4000.0, 4000.0, RGBA(0, 0, 0, 0)) {
+                centerXOn(gameField)
+                centerYOn(gameField)
+                onClick {
+                    Napier.d("Pause backdrop tapped - resuming")
+                    showingRestart = false
+                    this@container.removeFromParent()
+                }
+            }
+        }
+
         val restartBackground =
             roundRect(Size(fieldWidth, fieldHeight), RectCorners(5), fill = grayedGameFieldColor) {
                 centerXOn(gameField)
@@ -487,11 +514,18 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             label.centerYOn(within)
         }
 
+        // Four equally-sized buttons, evenly stacked. Each is shorter than the old three-button
+        // layout so the HAPTICS toggle fits alongside RESTART / GUIDE / SHARE.
+        val buttonWidth = fieldWidth * 2.0 / 3
+        val buttonHeight = fieldHeight * 0.15
+        val buttonGap = fieldHeight * 0.035
+        fun buttonTopOffset(index: Int) = fieldHeight * 0.185 + index * (buttonHeight + buttonGap)
+
         val bgRestartContainer =
             container {
-                val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
+                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, fieldHeight * 0.20)
+                    alignTopToTopOf(restartBackground, buttonTopOffset(0))
                 }
                 val label = text("RESTART", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
@@ -516,9 +550,9 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             }
         val howToContainer =
             container {
-                val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
+                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, fieldHeight * 0.44)
+                    alignTopToTopOf(restartBackground, buttonTopOffset(1))
                 }
                 val label = text("GUIDE", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
@@ -538,9 +572,9 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             }
         val shareContainer =
             container {
-                val textContainer = roundRect(Size(fieldWidth * 2 / 3, fieldHeight * 1 / 5), RectCorners(25), fill = pauseScreenBlockColor) {
+                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignBottomToBottomOf(restartBackground, fieldHeight * 0.12)
+                    alignTopToTopOf(restartBackground, buttonTopOffset(2))
                 }
                 val label = text("SHARE", 27.0, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
@@ -566,6 +600,41 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 onClick { shareAndConfirm() }
             }
 
+        // Haptics on/off button. The label always reads "HAPTICS"; it (and the icon) fade out
+        // while haptics are off, so the button's strength shows the current state at a glance.
+        val hapticsContainer =
+            container {
+                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                    centerXOn(restartBackground)
+                    alignTopToTopOf(restartBackground, buttonTopOffset(3))
+                }
+                val label = text("HAPTICS", 27.0, pauseScreenTextColor, font) {
+                    onOver { color = pauseScreenTextHoverColor }
+                    onOut { color = pauseScreenTextColor }
+                    onDown { color = pauseScreenTextDownColor }
+                    onUp { color = pauseScreenTextDownColor }
+                }
+                val icon = hapticsIcon(fieldWidth * 0.13, pauseScreenTextColor)
+                layoutButtonContent(label, icon, textContainer)
+
+                // Full strength when on, faded when off.
+                fun showEnabledState() {
+                    val contentAlpha = if (Haptics.enabled) 1.0 else 0.3
+                    label.alpha = contentAlpha
+                    icon.alpha = contentAlpha
+                }
+                showEnabledState()
+
+                onClick {
+                    Haptics.enabled = !Haptics.enabled
+                    stage?.views?.storage?.set(hapticsEnabledKey, Haptics.enabled.toString())
+                    showEnabledState()
+                    // A tick confirms the switch the moment haptics are turned back on.
+                    if (Haptics.enabled) Haptics.tap()
+                    Napier.d("Haptics toggled ${if (Haptics.enabled) "on" else "off"}")
+                }
+            }
+
         // On game over, stagger the screen in and show a heading above the buttons.
         // Otherwise this is the pause screen and everything is already visible.
         if (isGameOver) {
@@ -587,7 +656,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 restartBackground,
                 headingGlyphs,
                 headingText,
-                listOf(bgRestartContainer, howToContainer, shareContainer),
+                listOf(bgRestartContainer, howToContainer, shareContainer, hapticsContainer),
             )
         }
     }
@@ -602,4 +671,6 @@ fun Container.restart() {
     blocksMap.clear()
     blocksMap = initializeRandomBlocksMap()
     drawAllBlocks()
+    // New game: the background gradient drops back to its gray -> green opening.
+    resetBackgroundGradient()
 }

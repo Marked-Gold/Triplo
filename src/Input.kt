@@ -95,6 +95,7 @@ fun Stage.handleUp(point: Point)  {
             if (maybePosition == null) {
                 removeBombHover()
             } else {
+                Haptics.success()
                 animateBomb()
                 removeBomb()
                 bombSelected = false
@@ -120,6 +121,7 @@ fun Stage.pressDown(maybePosition: Position?) {
             Napier.v("Selecting Block at Position(${maybePosition.x},${maybePosition.y})")
             hoveredPositions.add(maybePosition)
             blocksMap[maybePosition] = blocksMap[maybePosition]!!.select()
+            Haptics.tap()
             updateSelectionPreview()
         } else {
             Napier.w("No block found at Position(${maybePosition.x},${maybePosition.y})")
@@ -157,6 +159,7 @@ fun Stage.hoverBlock(maybePosition: Position?) {
                 )
                 hoveredPositions.add(maybePosition)
                 blocksMap[maybePosition] = blocksMap[maybePosition]!!.select()
+                Haptics.tap()
             }
 
             updateSelectionPreview()

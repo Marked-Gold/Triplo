@@ -103,6 +103,35 @@ fun Container.helpIcon(
         }
     }
 
+/** Haptics icon — a phone silhouette flanked by vibration lines. */
+fun Container.hapticsIcon(
+    s: Double,
+    color: RGBA = iconInk,
+): Container =
+    iconBox(s) {
+        graphics {
+            val cx = s / 2.0
+            val cy = s / 2.0
+            val pw = s * 0.30
+            val ph = s * 0.54
+            // Phone body.
+            fill(color) {
+                roundRect(cx - pw / 2.0, cy - ph / 2.0, pw, ph, s * 0.07, s * 0.07)
+            }
+            // Vibration lines: a tall inner pair and a short outer pair, mirrored on each side.
+            stroke(color, lineWidth = s * 0.085, lineCap = LineCap.ROUND) {
+                for (side in listOf(-1.0, 1.0)) {
+                    val innerX = cx + side * (pw / 2.0 + s * 0.12)
+                    val outerX = cx + side * (pw / 2.0 + s * 0.24)
+                    moveTo(innerX, cy - s * 0.17)
+                    lineTo(innerX, cy + s * 0.17)
+                    moveTo(outerX, cy - s * 0.10)
+                    lineTo(outerX, cy + s * 0.10)
+                }
+            }
+        }
+    }
+
 /** Share icon — three connected nodes. */
 fun Container.shareIcon(
     s: Double,
