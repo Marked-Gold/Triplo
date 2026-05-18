@@ -23,3 +23,4 @@ korge.keystore
 /keystore.properties
 # Node / Cloudflare Worker tooling
 node_modules/
+.wrangler/
