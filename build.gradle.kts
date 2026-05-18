@@ -1,18 +1,21 @@
 import korlibs.korge.gradle.*
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.korge)
 }
 
 korge {
-    id = "com.sample.demo"
-    name = "Trillium"
+    id = "com.allmeatgames.triplo"
+    name = "Triplo"
+    version = "1.0.0"
 
     orientation = Orientation.PORTRAIT
 
-    // compileSdk 34 is required by the AdMob SDK's transitive AndroidX dependencies.
-    androidSdk(compileSdk = 34, minSdk = 21, targetSdk = 34)
+    // Google Play requires targetSdk 35+ for new apps (and 36+ from Aug 2026), so target 36.
+    // minSdk 23 is the floor for Google Mobile Ads SDK 24+.
+    androidSdk(compileSdk = 36, minSdk = 23, targetSdk = 36)
 
 // To selectively enable targets
     targetJvm()
@@ -24,24 +27,23 @@ korge {
     // --- AdMob (Google Mobile Ads) ---
     // Required so the ads SDK can fetch ads.
     androidPermission("android.permission.INTERNET")
-    // AdMob application id. This is Google's public *sample* app id which only serves test ads.
-    // Replace with your real AdMob app id before a production release.
+    // AdMob application id for the production Android app.
     androidManifestApplicationChunk(
         "<meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" " +
-            "android:value=\"ca-app-pub-3940256099942544~3347511713\" />"
+            "android:value=\"ca-app-pub-7742910323184344~4789526938\" />"
     )
 }
 
 dependencies {
     add("commonMainApi", project(":deps"))
     // Google Mobile Ads SDK - only needed by the Android target (see src@android/AdsAndroid.kt).
-    add("androidMainImplementation", "com.google.android.gms:play-services-ads:23.6.0")
+    add("androidMainImplementation", "com.google.android.gms:play-services-ads:25.2.0")
 }
 
 // =====================================================================================
 // iOS AdMob bridge
 // -------------------------------------------------------------------------------------
-// The iOS interstitial ads go through an Objective-C bridge (native/ios/TrilliumAds.{h,m}).
+// The iOS interstitial ads go through an Objective-C bridge (native/ios/TriploAds.{h,m}).
 //  * The cinterop below exposes the bridge *header* to Kotlin/Native.
 //  * patchIosProject injects the GoogleMobileAds SwiftPM package, the bridge .m source and the
 //    required Info.plist keys into KorGE's generated Xcode project (KorGE regenerates it on every
@@ -63,6 +65,15 @@ kotlin {
         }
     }
 }
+
+// KorGE 6.0.0 pins the Kotlin 2.0 compiler, but Google Mobile Ads SDK 25.x ships modules built
+// with Kotlin 2.2 metadata. Skip the metadata-version assertion so the 2.0 compiler will consume
+// them; the flag only relaxes a version check and changes no generated code.
+tasks.matching { it.name == "compileDebugKotlinAndroid" || it.name == "compileReleaseKotlinAndroid" }
+    .configureEach {
+        (this as org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>)
+            .compilerOptions.freeCompilerArgs.add("-Xskip-metadata-version-check")
+    }
 
 /** Inserts the AdMob keys KorGE's generated iOS Info.plist is missing. */
 fun patchIosInfoPlist(plist: File) {
@@ -155,4 +166,21 @@ tasks.matching { it.name == "prepareKotlinNativeIosProject" }.configureEach {
 project.afterEvaluate {
     val android = extensions.findByName("android") as? com.android.build.gradle.BaseExtension
     android?.sourceSets?.getByName("main")?.res?.srcDir(file("android/res"))
+}
+
+// Release signing (upload key). Configured when the Android application plugin is applied — early
+// enough for AGP to read it (an afterEvaluate hook runs too late). keystore.properties and the
+// .jks are gitignored and backed up in 1Password; without the file the release build is left
+// unsigned so non-release tasks still work on machines without the key.
+pluginManager.withPlugin("com.android.application") {
+    val keystoreProps = file("keystore.properties")
+    if (!keystoreProps.exists()) return@withPlugin
+    val android = extensions.getByName("android") as com.android.build.gradle.BaseExtension
+    val props = Properties().apply { keystoreProps.inputStream().use { load(it) } }
+    val release = android.signingConfigs.maybeCreate("release")
+    release.storeFile = file(props.getProperty("storeFile"))
+    release.storePassword = props.getProperty("storePassword")
+    release.keyAlias = props.getProperty("keyAlias")
+    release.keyPassword = props.getProperty("keyPassword")
+    android.buildTypes.getByName("release").signingConfig = release
 }

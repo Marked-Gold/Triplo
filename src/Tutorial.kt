@@ -519,7 +519,7 @@ private class InfoPage(
 )
 
 private fun welcomePage() =
-    InfoPage("WELCOME TO TRILLIUM", listOf("Merge blocks to climb powers of 3"))
+    InfoPage("WELCOME TO TRIPLO", listOf("Merge blocks to climb powers of 3"))
 
 private fun infoPages(): List<InfoPage> =
     listOf(

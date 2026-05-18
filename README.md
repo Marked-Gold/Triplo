@@ -1,4 +1,4 @@
-# Trillium
+# Triplo
 
 A powers-of-three merge puzzle game built with the [KorGE](https://korge.org/) Kotlin
 Multiplatform game engine. Drag-select chains of equal-value blocks to merge them upward, form
@@ -63,7 +63,7 @@ Common code talks to the platform-agnostic `Ads` facade (`src/Ads.kt`); each pla
 KorGE regenerates the iOS Xcode project on every build and exposes no hook for extra frameworks,
 so the bridge has four parts:
 
-- `native/ios/TrilliumAds.{h,m}` — a thin Objective-C wrapper over `GADInterstitialAd`. The header
+- `native/ios/TriploAds.{h,m}` — a thin Objective-C wrapper over `GADInterstitialAd`. The header
   imports only Foundation; only the `.m` imports the AdMob SDK.
 - `native/GoogleMobileAdsBridge.def` — cinterop definition exposing the header to Kotlin/Native.
 - `build.gradle.kts` registers the cinterop and a `patchIosProject` step that injects the

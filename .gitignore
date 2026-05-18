@@ -18,3 +18,6 @@ local.properties
 *.hprof
 *.log
 korge.keystore
+# Release signing — NEVER commit. Back these up in 1Password.
+/triplo-upload-key.jks
+/keystore.properties

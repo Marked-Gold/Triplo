@@ -6,12 +6,12 @@ NS_ASSUME_NONNULL_BEGIN
  * Thin Objective-C bridge over the Google Mobile Ads (AdMob) interstitial API.
  *
  * The KorGE / Kotlin-Native side talks to this class through cinterop. This header deliberately
- * imports only Foundation - the GoogleMobileAds SDK is imported by TrilliumAds.m only - so the
+ * imports only Foundation - the GoogleMobileAds SDK is imported by TriploAds.m only - so the
  * cinterop step does not need the AdMob SDK headers to be present.
  *
  * All methods are safe to call from any thread; UI work is dispatched to the main thread.
  */
-@interface TrilliumAds : NSObject
+@interface TriploAds : NSObject
 
 /** Initialises the Google Mobile Ads SDK. Call once at app start. */
 + (void)initializeSdk;

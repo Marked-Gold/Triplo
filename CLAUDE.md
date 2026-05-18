@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-Project notes for working on **Trillium** (a KorGE 6.0 game). See `README.md` for the
+Project notes for working on **Triplo** (a KorGE 6.0 game; the git repo directory is still
+named `Trillium` from before the rename). See `README.md` for the
 full overview, build commands, and the AdMob ads setup.
 
 ## Build essentials
@@ -9,7 +10,7 @@ full overview, build commands, and the AdMob ads setup.
   `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew <task>`
 - Android `adb` is not on PATH either — full path:
   `/opt/homebrew/share/android-commandlinetools/platform-tools/adb`
-- Android application id (package): `com.sample.demo`
+- Android application id (package): `com.allmeatgames.triplo`
 
 ## Debugging a crash on a connected Android device
 
@@ -25,7 +26,7 @@ $ADB devices -l
 $ADB logcat -b crash -d -t 200
 
 # Or filter the full log for this app / KorGE
-$ADB logcat -d -t 400 | grep -iE 'FATAL|AndroidRuntime|com.sample.demo|korge|trillium'
+$ADB logcat -d -t 400 | grep -iE 'FATAL|AndroidRuntime|com.allmeatgames.triplo|korge|triplo'
 ```
 
 Tips:
@@ -34,4 +35,4 @@ Tips:
   in `src/` (debug builds are not obfuscated).
 - Reinstall after a fix: `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew installAndroidDebug`
 - Relaunch without touching the phone:
-  `$ADB shell monkey -p com.sample.demo -c android.intent.category.LAUNCHER 1`
+  `$ADB shell monkey -p com.allmeatgames.triplo -c android.intent.category.LAUNCHER 1`

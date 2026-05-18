@@ -119,7 +119,7 @@ fun Container.cartridgeSlot(fill: RGBA): Container =
 suspend fun main() =
     Korge(
         windowSize = Size(360, 640),
-        title = "Trillium",
+        title = "Triplo",
         backgroundColor = RGBA(253, 247, 240),
         // CENTER_NO_CLIP keeps the game letterboxed but does not clip the borders, so the
         // background can bleed past the virtual area to fill any phone aspect ratio (issue 5).
@@ -447,8 +447,13 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 gridString = gridString + "\n"
             }
 
-            // Emoji grid first, then a plain-text score line.
-            val clipboardContent = gridString + "I scored ${score.value} trillium.ing"
+            // Render the score with keycap-digit emoji, e.g. 1️⃣2️⃣3️⃣.
+            val scoreEmoji = score.value.toString()
+                .map { digit -> "$digit️⃣" }
+                .joinToString("")
+
+            // Emoji grid, then the score, then the call to action.
+            val clipboardContent = gridString + "Score: " + scoreEmoji + "\nJoin the triplo.club"
 
             Napier.d("Clipboard Content:\n $clipboardContent")
             stage?.views?.copyTextToClipboard(clipboardContent)

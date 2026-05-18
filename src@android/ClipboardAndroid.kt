@@ -11,7 +11,7 @@ actual fun Views.copyTextToClipboard(text: String) {
     // setPrimaryClip must run on a thread with a Looper; the game render thread has none.
     val copy = Runnable {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        clipboard?.setPrimaryClip(ClipData.newPlainText("Trillium", text))
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Triplo", text))
     }
     when (val activity = context as? Activity) {
         null -> copy.run()

@@ -1,4 +1,4 @@
-#import "TrilliumAds.h"
+#import "TriploAds.h"
 #import <UIKit/UIKit.h>
 @import GoogleMobileAds;
 
@@ -12,19 +12,19 @@
  * Written against Google Mobile Ads SDK 11.x. If a newer SDK renames these Objective-C symbols,
  * adjust them here.
  */
-@interface TrilliumAds () <GADFullScreenContentDelegate>
+@interface TriploAds () <GADFullScreenContentDelegate>
 @end
 
-@implementation TrilliumAds {
+@implementation TriploAds {
     GADInterstitialAd *_interstitial;
     NSString *_adUnitId;
     void (^_completion)(void);
 }
 
 + (instancetype)shared {
-    static TrilliumAds *shared = nil;
+    static TriploAds *shared = nil;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ shared = [[TrilliumAds alloc] init]; });
+    dispatch_once(&once, ^{ shared = [[TriploAds alloc] init]; });
     return shared;
 }
 
@@ -54,7 +54,7 @@
                                     request:request
                           completionHandler:^(GADInterstitialAd *_Nullable ad, NSError *_Nullable error) {
             if (error != nil || ad == nil) {
-                NSLog(@"[TrilliumAds] interstitial failed to load: %@", error);
+                NSLog(@"[TriploAds] interstitial failed to load: %@", error);
                 self->_interstitial = nil;
                 return;
             }
@@ -73,7 +73,7 @@
         }
         self->_interstitial = nil;
         self->_completion = [completion copy];
-        UIViewController *root = [TrilliumAds rootViewController];
+        UIViewController *root = [TriploAds rootViewController];
         if (root == nil) {
             [self finishWithCompletion];
             return;
@@ -96,7 +96,7 @@
 
 - (void)ad:(id<GADFullScreenPresentingAd>)ad
     didFailToPresentFullScreenContentWithError:(NSError *)error {
-    NSLog(@"[TrilliumAds] interstitial failed to present: %@", error);
+    NSLog(@"[TriploAds] interstitial failed to present: %@", error);
     [self finishWithCompletion];
 }
 

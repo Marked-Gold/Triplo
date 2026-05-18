@@ -1,9 +1,9 @@
-# cinterop definition for the Objective-C AdMob bridge (native/ios/TrilliumAds.h).
+# cinterop definition for the Objective-C AdMob bridge (native/ios/TriploAds.h).
 #
 # Only the bridge header is exposed to Kotlin/Native - the GoogleMobileAds SDK itself is never
-# seen by cinterop (TrilliumAds.h imports only Foundation). The bridge implementation
-# (TrilliumAds.m) is compiled and linked by Xcode in the generated iOS app target.
+# seen by cinterop (TriploAds.h imports only Foundation). The bridge implementation
+# (TriploAds.m) is compiled and linked by Xcode in the generated iOS app target.
 language = Objective-C
-package = trilliumads
-headers = TrilliumAds.h
-headerFilter = TrilliumAds.h
+package = triploads
+headers = TriploAds.h
+headerFilter = TriploAds.h

@@ -8,7 +8,7 @@ import korlibs.logger.Logger
  * to it here instead of pulling in an extra dependency.
  */
 object Napier {
-    private val logger = Logger("Trillium")
+    private val logger = Logger("Triplo")
 
     /** No-op kept for source compatibility with the old `Napier.base(DebugAntilog())` call. */
     fun base(antilog: Any? = null) {}
