@@ -345,9 +345,11 @@ fun Stage.animateBomb() =
         blocksMap = blocksMap.filter { (_, block) -> flyingBlocks.none { it.id == block.id } }.toMutableMap()
         delay(500L)
         generateNewBlocks()
+        // The board is logically complete and playable here, so re-enable input now rather
+        // than after the purely cosmetic fly-off of the old tiles finishes (~2.3s later).
+        stopAnimating()
 
         flyOff.join()
-        stopAnimating()
         checkGameOver()
         onTutorialBomb()
     }
