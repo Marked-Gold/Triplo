@@ -1,0 +1,12 @@
+# Cloudflare Worker config for triplo.club.
+# Deploy with `wrangler deploy` from this directory (see README.md).
+
+name = "triplo-club"
+main = "src/worker.js"
+compatibility_date = "2026-05-17"
+
+# Attach the Worker to the apex domain. triplo.club is registered in this
+# Cloudflare account, so a custom-domain route works directly.
+routes = [
+  { pattern = "triplo.club", custom_domain = true },
+]

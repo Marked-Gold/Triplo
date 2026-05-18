@@ -69,7 +69,7 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 - ❌ iOS signing / provisioning via the Apple Developer account.
 
 ### Store listings — ❌ not started
-- ❌ Privacy policy (required — discloses AdMob data collection) — to be hosted on `triplo.club`.
+- ✅ Privacy policy drafted — served at `triplo.club/privacy` by the Worker once deployed.
 - ❌ Screenshots (Android phone; iOS 6.7").
 - ❌ 512×512 icon, 1024×500 feature graphic.
 - ❌ Short + full store description.
@@ -77,9 +77,11 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 - ❌ Data safety form (Google) / App Privacy labels (Apple) — declare AdMob + advertising ID.
 - ❌ `app-ads.txt` on `allmeatgames.com` (optional, improves ad fill).
 
-### triplo.club redirect — ❌ not started
-- ❌ Cloudflare Worker: platform-detecting redirect (iOS → App Store, Android → Play Store,
-  desktop → landing page) and a `/privacy` page hosting the privacy policy.
+### triplo.club redirect — ✅ code written, ⏳ deploy
+- ✅ Cloudflare Worker written (`cloudflare-worker/`): platform-detecting redirect
+  (iOS → App Store, Android → Play Store, desktop → landing page) + `/privacy` page.
+- ❌ Deploy it: `npx wrangler deploy` from `cloudflare-worker/` (needs Cloudflare login).
+- ❌ Fill in `APP_STORE_URL` in `worker.js` once the iOS app's App Store ID exists.
 
 ### Launch — ❌ blocked on the above
 - ❌ Google **closed test**: 12+ testers opted in for 14 continuous days — required for new
