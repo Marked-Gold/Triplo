@@ -136,6 +136,14 @@ suspend fun main() =
         // Wire up haptic feedback (real on Android/iOS, no-op elsewhere).
         views.installPlatformHaptics()
 
+        // Game font is needed by the studio intro too, so load it before anything that uses it.
+        font = resourcesVfs["clear_sans.fnt"].readBitmapFont()
+
+        // Studio intro: ~3s drop-in / triplicate / fade-in of "ALL MEAT GAMES" with a moo.
+        // Runs before any game view is drawn so nothing else is visible underneath, and
+        // suspends until complete — there is no way to skip it.
+        playIntroAnimation()
+
         // Triangle art plus slowly drifting glow orbs; also wires up the colour
         // wash that fires when a high-tier block is forged. See Background.kt.
         setupBackground()
@@ -152,8 +160,6 @@ suspend fun main() =
         best.observe {
             storage["best"] = it.toString()
         }
-
-        font = resourcesVfs["clear_sans.fnt"].readBitmapFont()
 
         cellSize = views.virtualWidth / (gridColumns + 2)
         Napier.d("Cell size = $cellSize")
