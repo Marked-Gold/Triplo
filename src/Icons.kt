@@ -132,6 +132,34 @@ fun Container.hapticsIcon(
         }
     }
 
+/** Sound icon — a speaker silhouette with two sound waves radiating to the right. Dimmed by the
+ * caller (alpha = 0.3) to indicate muted, matching the haptics-toggle pattern; no separate "muted"
+ * variant. */
+fun Container.speakerIcon(
+    s: Double,
+    color: RGBA = iconInk,
+): Container =
+    iconBox(s) {
+        graphics {
+            // Magnet rectangle on the left, fused to a trapezoidal cone widening to the right.
+            // Drawn as one closed path so they share a single fill with no seam between them.
+            fill(color) {
+                moveTo(s * 0.16, s * 0.42)
+                lineTo(s * 0.30, s * 0.42)
+                lineTo(s * 0.50, s * 0.27)
+                lineTo(s * 0.50, s * 0.73)
+                lineTo(s * 0.30, s * 0.58)
+                lineTo(s * 0.16, s * 0.58)
+                close()
+            }
+            // Two arcs to the right of the cone — the inner one closer in, the outer slightly past.
+            stroke(color, lineWidth = s * 0.085, lineCap = LineCap.ROUND) {
+                arc(Point(s * 0.45, s * 0.50), s * 0.18, (-40).degrees, 40.degrees, false)
+                arc(Point(s * 0.45, s * 0.50), s * 0.30, (-40).degrees, 40.degrees, false)
+            }
+        }
+    }
+
 /** Share icon — three connected nodes. */
 fun Container.shareIcon(
     s: Double,

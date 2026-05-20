@@ -21,6 +21,10 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
         // across the background from that spot.
         var topTier: Number? = null
         var topHead: Position? = null
+        // Highest tier forged anywhere in this merge — drives the single merge SFX pop. Tracked
+        // separately from topTier so it captures sub-81 merges too (and so square-merges that
+        // forge two heads at once don't double-trigger the sound).
+        var highestMergeTier: Number? = null
         animate {
             parallel {
                 Napier.v("Animating the blocks merging together")
@@ -51,11 +55,17 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                         topTier = value
                         topHead = headPosition
                     }
+                    if (highestMergeTier == null || value.ordinal > highestMergeTier!!.ordinal) {
+                        highestMergeTier = value
+                    }
                     val newBlock = blocksMap[headPosition]!!.updateNumber(value).unselect().copy()
                     deleteBlock(blocksMap[headPosition]!!)
                     blocksMap[headPosition] = newBlock
                     drawBlock(newBlock, headPosition)
                 }
+                // One soft pop per merge event, pitched to the highest tier forged. Firing per-head
+                // makes square-merges and other multi-head merges sound like a smeared double-tap.
+                highestMergeTier?.let { Sfx.merge(it) }
             }
             sequenceLazy {
                 val newPositionBlocks = generateBlocksForEmptyPositions()
@@ -111,6 +121,8 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                         getXFromPosition(head) + cellSize / 2.0,
                         getYFromPosition(head) + cellSize / 2.0,
                     )
+                    // Singing-bowl swell on top of the merge pop, pitched per tier.
+                    Sfx.pulse(tier)
                 }
                 checkGameOver()
                 onTutorialMerge()
@@ -212,6 +224,9 @@ fun Stage.animatePowerUpSelection(
 suspend fun Stage.animateBoardShake() {
     val blocks = blocksMap.values.toList()
     if (blocks.isEmpty()) return
+    // Descending sigh lands in step with the shake; the shake's the only thing that signals the
+    // dead end visually, so the sound piggybacks on it rather than getting its own moment.
+    Sfx.gameOver()
     val homeX = blocks.associateWith { it.x }
     animate {
         for (dx in listOf(10.0, -9.0, 7.0, -5.0, 3.0, 0.0)) {
@@ -296,6 +311,7 @@ fun Stage.generateNewBlocks() =
 fun Stage.animateBomb() =
     launchImmediately {
         startAnimating()
+        Sfx.bomb()
         Napier.v("Animating the bomb")
         val bombedPositions = hoveredBombPositions.toList()
         hoveredBombPositions.clear()
@@ -348,10 +364,12 @@ fun Stage.animateBomb() =
         // The board is logically complete and playable here, so re-enable input now rather
         // than after the purely cosmetic fly-off of the old tiles finishes (~2.3s later).
         stopAnimating()
+        // Same reasoning for the tutorial gate: advance to the next step as soon as the
+        // board is playable, so the rocket panel doesn't sit behind the long fly-off.
+        onTutorialBomb()
 
         flyOff.join()
         checkGameOver()
-        onTutorialBomb()
     }
 
 fun Stage.animateRocket(selection: RocketSelection) =
@@ -361,6 +379,7 @@ fun Stage.animateRocket(selection: RocketSelection) =
             (selection.secondPosition == null) -> Napier.e("No second position when animating rockets")
             else -> {
                 startAnimating()
+                Sfx.rocket()
                 val firstPosition = selection.firstPosition!!
                 val secondPosition = selection.secondPosition!!
                 val firstBlock = blocksMap[firstPosition]!!

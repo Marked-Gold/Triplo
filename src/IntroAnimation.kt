@@ -1,4 +1,3 @@
-import korlibs.audio.sound.*
 import korlibs.image.bitmap.*
 import korlibs.image.color.*
 import korlibs.image.font.*
@@ -24,7 +23,6 @@ import kotlinx.coroutines.delay
 suspend fun Stage.playIntroAnimation() {
     val meatBitmap = resourcesVfs["meat-A.png"].readBitmap()
     val backgroundBitmap = resourcesVfs["background.png"].readBitmap()
-    val moo = resourcesVfs["moo.wav"].readSound()
     // Intro-only display font. The game UI keeps clear_sans (a bitmap font);
     // the studio splash gets a chunkier TTF loaded just for this animation.
     val introFont = resourcesVfs["Slackey-Regular.ttf"].readTtfFont()
@@ -156,8 +154,9 @@ suspend fun Stage.playIntroAnimation() {
         }
     }.awaitComplete()
 
-    // Moo fires at the moment of impact, in sync with the landing squash below.
-    moo.play(coroutineContext, PlaybackParameters.DEFAULT)
+    // Moo fires at the moment of impact, in sync with the landing squash below. Routed
+    // through [Sfx] so the player's SFX mute silences the intro too.
+    Sfx.moo()
 
     // Quick squash-and-settle so the landing has some weight (~0.2s).
     animate {

@@ -139,6 +139,12 @@ suspend fun main() =
         // Game font is needed by the studio intro too, so load it before anything that uses it.
         font = resourcesVfs["clear_sans.fnt"].readBitmapFont()
 
+        // Storage holds the best score and the haptics/SFX preferences. Read it before the intro
+        // so the moo honours the player's SFX mute, and reuse the same handle for the rest of boot.
+        val storage = views.storage
+        Sfx.enabled = storage.getOrNull(sfxEnabledKey)?.toBoolean() ?: true
+        Sfx.load(coroutineContext)
+
         // Studio intro: ~3s drop-in / triplicate / fade-in of "ALL MEAT GAMES" with a moo.
         // Runs before any game view is drawn so nothing else is visible underneath, and
         // suspends until complete — there is no way to skip it.
@@ -148,7 +154,6 @@ suspend fun main() =
         // wash that fires when a high-tier block is forged. See Background.kt.
         setupBackground()
 
-        val storage = views.storage
         best.update(storage.getOrNull("best")?.toInt() ?: 0)
 
         // Restore the haptics on/off preference (defaults to on); toggled from the pause menu.
@@ -606,28 +611,29 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 onClick { shareAndConfirm() }
             }
 
-        // Haptics on/off button. The label always reads "HAPTICS"; it (and the icon) fade out
-        // while haptics are off, so the button's strength shows the current state at a glance.
+        // The 4th row holds two icon-only toggles side-by-side: HAPTICS on the left, SOUND on the
+        // right. The pair shares the same horizontal footprint as the three labelled buttons above
+        // it; the icon dims to 0.3 alpha when its feature is off, so each button's strength shows
+        // the current state at a glance (no separate "muted" art needed).
+        val slotGap = buttonWidth * 0.08
+        val slotWidth = (buttonWidth - slotGap) / 2.0
+        // After centerXOn, shift each half outward by this much so the two rects sit symmetrically
+        // around the row's centreline with `slotGap` of space between them.
+        val slotShift = (slotWidth + slotGap) / 2.0
+        val toggleIconSize = fieldWidth * 0.15
+
         val hapticsContainer =
             container {
-                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
+                    x -= slotShift
                     alignTopToTopOf(restartBackground, buttonTopOffset(3))
                 }
-                val label = text("HAPTICS", 27.0, pauseScreenTextColor, font) {
-                    onOver { color = pauseScreenTextHoverColor }
-                    onOut { color = pauseScreenTextColor }
-                    onDown { color = pauseScreenTextDownColor }
-                    onUp { color = pauseScreenTextDownColor }
-                }
-                val icon = hapticsIcon(fieldWidth * 0.13, pauseScreenTextColor)
-                layoutButtonContent(label, icon, textContainer)
+                val icon = hapticsIcon(toggleIconSize, pauseScreenTextColor)
+                icon.centerOn(textContainer)
 
-                // Full strength when on, faded when off.
                 fun showEnabledState() {
-                    val contentAlpha = if (Haptics.enabled) 1.0 else 0.3
-                    label.alpha = contentAlpha
-                    icon.alpha = contentAlpha
+                    icon.alpha = if (Haptics.enabled) 1.0 else 0.3
                 }
                 showEnabledState()
 
@@ -638,6 +644,31 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                     // A tick confirms the switch the moment haptics are turned back on.
                     if (Haptics.enabled) Haptics.tap()
                     Napier.d("Haptics toggled ${if (Haptics.enabled) "on" else "off"}")
+                }
+            }
+
+        val sfxContainer =
+            container {
+                val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                    centerXOn(restartBackground)
+                    x += slotShift
+                    alignTopToTopOf(restartBackground, buttonTopOffset(3))
+                }
+                val icon = speakerIcon(toggleIconSize, pauseScreenTextColor)
+                icon.centerOn(textContainer)
+
+                fun showEnabledState() {
+                    icon.alpha = if (Sfx.enabled) 1.0 else 0.3
+                }
+                showEnabledState()
+
+                onClick {
+                    Sfx.enabled = !Sfx.enabled
+                    stage?.views?.storage?.set(sfxEnabledKey, Sfx.enabled.toString())
+                    showEnabledState()
+                    // A short pop confirms the switch the moment SFX is turned back on.
+                    if (Sfx.enabled) Sfx.merge(Number.ONE)
+                    Napier.d("Sfx toggled ${if (Sfx.enabled) "on" else "off"}")
                 }
             }
 
@@ -662,7 +693,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 restartBackground,
                 headingGlyphs,
                 headingText,
-                listOf(bgRestartContainer, howToContainer, shareContainer, hapticsContainer),
+                listOf(bgRestartContainer, howToContainer, shareContainer, hapticsContainer, sfxContainer),
             )
         }
     }
