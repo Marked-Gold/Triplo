@@ -1,4 +1,4 @@
-import Number.*
+import Rank.*
 import korlibs.korge.view.*
 import korlibs.korge.view.align.*
 import korlibs.image.color.*
@@ -21,7 +21,7 @@ fun Container.removeBlock(block: Block) {
 enum class BlockSelection () {
     UNSELECTED, SMALL, MEDIUM, LARGE, EXTRALARGE, BOMB, ROCKET, PATTERN;
 
-    fun colorContent (number: Number) =
+    fun colorContent (number: Rank) =
         when (this){
             UNSELECTED -> number.color
             SMALL -> number.next().color
@@ -33,7 +33,7 @@ enum class BlockSelection () {
             PATTERN -> patternBorderOptions[Random.nextInt(patternBorderOptions.size)]
         }
 
-    fun colorBorder (number: Number) =
+    fun colorBorder (number: Rank) =
         when (this){
             UNSELECTED -> number.color
             SMALL -> number.next().color
@@ -50,42 +50,42 @@ enum class BlockSelection () {
  * A single playing-field block.
  *
  * Selection preview (issue 4): while a chain is being dragged, every selected block previews the
- * number it is becoming. [previewNumber] drives that preview — non-result blocks just recolour
+ * number it is becoming. [previewRank] drives that preview — non-result blocks just recolour
  * their border to the upcoming colour, while [isResultBlock] blocks (the squares that actually
  * become the upgraded result) are fully recoloured.
  */
 data class Block(
     val id: Int,
-    var number: Number,
+    var number: Rank,
     var selection: BlockSelection = BlockSelection.UNSELECTED,
-    var previewNumber: Number? = null,
+    var previewRank: Rank? = null,
     var isResultBlock: Boolean = false,
 ) : Container() {
 
     init {
         val size = Size(cellSize, cellSize)
-        val preview = previewNumber
+        val preview = previewRank
         when {
             // Result square: fully recoloured to the block it is becoming.
             preview != null && isResultBlock -> {
                 roundRect(size, RectCorners(5), fill = preview.color, stroke = preview.color, strokeThickness = selectionBorderThickness)
-                drawNumber(preview.TextColor)
+                drawRank(preview.TextColor)
             }
             // Selected (but consumed) square: keeps its colour, border hints the upcoming colour.
             preview != null -> {
                 roundRect(size, RectCorners(5), fill = number.color, stroke = preview.color, strokeThickness = selectionBorderThickness)
-                drawNumber(number.TextColor)
+                drawRank(number.TextColor)
             }
             // Bomb / rocket selections keep their dedicated styling.
             selection == BlockSelection.BOMB || selection == BlockSelection.ROCKET -> {
                 roundRect(size, RectCorners(5), fill = number.color, stroke = selection.colorBorder(number), strokeThickness = selectionBorderThickness)
                 roundRect(size, RectCorners(5), fill = selection.colorContent(number).withA(80))
-                drawNumber(number.TextColor)
+                drawRank(number.TextColor)
             }
             // Idle block.
             else -> {
                 roundRect(size, RectCorners(5), fill = number.color, stroke = number.color, strokeThickness = idleBorderThickness)
-                drawNumber(number.TextColor)
+                drawRank(number.TextColor)
             }
         }
     }
@@ -97,7 +97,7 @@ data class Block(
      * asymmetric side-bearing (notably "1") looking off-centre. Measuring the rendered bounds and
      * offsetting by them centres what is actually visible.
      */
-    private fun drawNumber(textColor: RGBA) {
+    private fun drawRank(textColor: RGBA) {
         val label = text(number.display, textSizeFor(number), textColor, font)
         val bounds = label.getLocalBounds()
         label.xy(
@@ -108,7 +108,7 @@ data class Block(
 
     fun unselect (): Block {
         this.selection = BlockSelection.UNSELECTED
-        this.previewNumber = null
+        this.previewRank = null
         this.isResultBlock = false
         return this
     }
@@ -161,7 +161,7 @@ data class Block(
     }
 
     fun copy (): Block {
-        return Block(id, number, selection, previewNumber, isResultBlock)
+        return Block(id, number, selection, previewRank, isResultBlock)
     }
 
     fun copyToNextId (): Block {
@@ -175,7 +175,7 @@ data class Block(
         return this
     }
 
-    fun updateNumber (numberValue: Number): Block {
+    fun updateRank (numberValue: Rank): Block {
         this.number = numberValue
         return this
     }
@@ -187,7 +187,7 @@ data class Block(
     override fun hashCode(): Int { return id }
 }
 
-private fun textSizeFor(number: Number) = when (number) {
+private fun textSizeFor(number: Rank) = when (number) {
     ZERO, ONE, TWO, THREE, FOUR, FIVE -> cellSize / 2.0
     SIX, SEVEN, EIGHT -> cellSize * 4 / 9.0
     NINE, TEN -> cellSize * 2 / 5.0

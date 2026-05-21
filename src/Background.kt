@@ -54,8 +54,8 @@ private var pulseMaxDist = 0.0
 // far: it opens green (the 27 tier) and climbs to purple (81), red (243), and
 // beyond. Each high-tier merge hands its tier to the pulse wave, which carries
 // the gradient shift facet-to-facet as it travels.
-private var gradBotTier = Number.THREE
-private var gradBotColor = Number.THREE.color
+private var gradBotTier = Rank.THREE
+private var gradBotColor = Rank.THREE.color
 
 // While a pulse runs, these hold the gradient bottom colour before and after the
 // shift; pulseChangesGrad is false when the merge did not out-rank the gradient.
@@ -308,7 +308,7 @@ private fun buildAdjacency() {
 // nearest (centerX, centerY) — the spot the block was made. When the forged
 // tier out-ranks the gradient's current bottom tier, the wave also carries the
 // gradient's bottom colour up to that tier as it travels.
-fun triggerBackgroundPulse(tier: Number, centerX: Double, centerY: Double) {
+fun triggerBackgroundPulse(tier: Rank, centerX: Double, centerY: Double) {
     if (tris.isEmpty()) return
 
     // A merge landed before the previous pulse settled: commit whatever gradient
@@ -381,8 +381,8 @@ fun triggerBackgroundPulse(tier: Number, centerX: Double, centerY: Double) {
 
 // Restores the gradient to its opening state (gray -> green) for a new game.
 fun resetBackgroundGradient() {
-    gradBotTier = Number.THREE
-    gradBotColor = Number.THREE.color
+    gradBotTier = Rank.THREE
+    gradBotColor = Rank.THREE.color
     pulseActive = false
     pulseChangesGrad = false
     pulseGradFrom = gradBotColor

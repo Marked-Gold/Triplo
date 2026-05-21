@@ -5,7 +5,7 @@ import kotlin.math.max
 
 val finalColor = Colors["#ffa96a"]
 
-enum class Number(
+enum class Rank(
     val blockName: String,
     val value: Int,
     val color: RGBA,
@@ -38,8 +38,8 @@ enum class Number(
     fun next() = values()[(ordinal + 1) % values().size]
     fun previous() = values()[max((ordinal - 1), 0) % values().size]
 }
-fun findClosest(comparisonValue: Int) = Number.values().minByOrNull { number: Number -> abs(number.value - comparisonValue) }!!
-fun findClosestRoundedUp(comparisonValue: Int) = Number.values().find { number: Number -> number.value > comparisonValue }!!
+fun findClosest(comparisonValue: Int) = Rank.values().minByOrNull { number: Rank -> abs(number.value - comparisonValue) }!!
+fun findClosestRoundedUp(comparisonValue: Int) = Rank.values().find { number: Rank -> number.value > comparisonValue }!!
 
 
 

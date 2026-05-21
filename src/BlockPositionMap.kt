@@ -43,11 +43,11 @@ fun initBlock(): Block {
     nextBlockId++
     val random = Random.nextDouble()
     return when {
-        selectedId == random27ID -> Block(id = selectedId, Number.THREE)
-        random < 0.1 -> Block(id = selectedId, Number.THREE)
-        random < 0.2 -> Block(id = selectedId, Number.TWO)
-        random < 0.5 -> Block(id = selectedId, Number.ONE)
-        else -> Block(id = selectedId, Number.ZERO)
+        selectedId == random27ID -> Block(id = selectedId, Rank.THREE)
+        random < 0.1 -> Block(id = selectedId, Rank.THREE)
+        random < 0.2 -> Block(id = selectedId, Rank.TWO)
+        random < 0.5 -> Block(id = selectedId, Rank.ONE)
+        else -> Block(id = selectedId, Rank.ZERO)
     }
 }
 
@@ -57,7 +57,7 @@ fun initializeRandomBlocksMap(): MutableMap<Position, Block> {
 
 // private fun getEnumId(position: Position) = array[position.x + position.y * gridRows]
 
-private fun getNumber(id: Int) = Number.values()[id]
+private fun getRank(id: Int) = Rank.values()[id]
 
 private fun getPosition(idx: Int) = Position(idx % gridColumns, idx / gridColumns)
 
@@ -109,7 +109,7 @@ private fun hasTwoMatchingAdjacents(
 ): Boolean {
     return tryAllAdjacentPositions(position)
         .map { adjPosition -> blocksMap[adjPosition]?.number }
-        .filter { adjNumber -> adjNumber == block.number }
+        .filter { adjRank -> adjRank == block.number }
         .count() >= 2
 }
 
@@ -117,13 +117,13 @@ fun getAllEmptyPositions(): List<Position> {
     return allPositions().mapNotNull { position -> if (!blocksMap.containsKey(position)) position else null }
 }
 
-fun getRandomNumber(): Number {
+fun getRandomRank(): Rank {
     val random = Random.nextDouble()
     return when {
-        random < 0.05 -> Number.THREE
-        random < 0.2 -> Number.TWO
-        random < 0.55 -> Number.ONE
-        else -> Number.ZERO
+        random < 0.05 -> Rank.THREE
+        random < 0.2 -> Rank.TWO
+        random < 0.55 -> Rank.ONE
+        else -> Rank.ZERO
     }
 }
 
@@ -131,46 +131,46 @@ fun generateBlocksForEmptyPositions(): List<Pair<Position, Block>> {
     return getAllEmptyPositions().map { position ->
         val selectedId = nextBlockId
         nextBlockId++
-        Pair(position, Block(selectedId, getRandomNumber()))
+        Pair(position, Block(selectedId, getRandomRank()))
     }
 }
 
-fun determineMerge(positionList: MutableList<Position>): MutableMap<Position, Pair<Number, List<Position>>> {
-    val mergeMap = mutableMapOf<Position, Pair<Number, List<Position>>>()
+fun determineMerge(positionList: MutableList<Position>): MutableMap<Position, Pair<Rank, List<Position>>> {
+    val mergeMap = mutableMapOf<Position, Pair<Rank, List<Position>>>()
     val pattern = determinePattern(positionList)
 
-    var nextNumber =
+    var nextRank =
         when (positionList.size) {
-            in 0..mediumSelectionSize - 1 -> blocksMap[positionList.first()]?.number?.next() ?: Number.ZERO
-            in mediumSelectionSize..largeSelectionSize - 1 -> blocksMap[positionList.first()]?.number?.next()?.next() ?: Number.ZERO
-            else -> blocksMap[positionList.first()]?.number?.next()?.next()?.next() ?: Number.ZERO
+            in 0..mediumSelectionSize - 1 -> blocksMap[positionList.first()]?.number?.next() ?: Rank.ZERO
+            in mediumSelectionSize..largeSelectionSize - 1 -> blocksMap[positionList.first()]?.number?.next()?.next() ?: Rank.ZERO
+            else -> blocksMap[positionList.first()]?.number?.next()?.next()?.next() ?: Rank.ZERO
         }
     when (pattern) {
         Pattern.TRIPLE -> {
             val last = positionList.removeAt(positionList.lastIndex)
-            mergeMap[last] = Pair(nextNumber, positionList)
+            mergeMap[last] = Pair(nextRank, positionList)
         }
         Pattern.I4 -> {
             val last = positionList.removeAt(positionList.lastIndex)
             val secondLast = positionList.removeAt(positionList.lastIndex)
-            mergeMap[secondLast] = Pair(nextNumber, positionList.subList(0, 1).toMutableList())
-            mergeMap[last] = Pair(nextNumber, positionList.subList(1, 2).toMutableList())
+            mergeMap[secondLast] = Pair(nextRank, positionList.subList(0, 1).toMutableList())
+            mergeMap[last] = Pair(nextRank, positionList.subList(1, 2).toMutableList())
         }
         Pattern.I5 -> {
             val last = positionList.removeAt(positionList.lastIndex)
-            mergeMap[last] = Pair(nextNumber.next(), positionList.toMutableList())
+            mergeMap[last] = Pair(nextRank.next(), positionList.toMutableList())
         }
         Pattern.I6 -> {
             val last = positionList.removeAt(positionList.lastIndex)
             val secondLast = positionList.removeAt(positionList.lastIndex)
-            mergeMap[secondLast] = Pair(nextNumber, positionList.subList(0, 2).toMutableList())
-            mergeMap[last] = Pair(nextNumber, positionList.subList(2, 4).toMutableList())
+            mergeMap[secondLast] = Pair(nextRank, positionList.subList(0, 2).toMutableList())
+            mergeMap[last] = Pair(nextRank, positionList.subList(2, 4).toMutableList())
         }
         Pattern.I7 -> {
             val last = positionList.removeAt(positionList.lastIndex)
             val secondLast = positionList.removeAt(positionList.lastIndex)
-            mergeMap[secondLast] = Pair(nextNumber, positionList.subList(0, 2).toMutableList())
-            mergeMap[last] = Pair(nextNumber.next(), positionList.subList(2, 5).toMutableList())
+            mergeMap[secondLast] = Pair(nextRank, positionList.subList(0, 2).toMutableList())
+            mergeMap[last] = Pair(nextRank.next(), positionList.subList(2, 5).toMutableList())
         }
         Pattern.RECTANGLE -> {
             val last = positionList.last()
@@ -199,31 +199,31 @@ fun determineMerge(positionList: MutableList<Position>): MutableMap<Position, Pa
 
             Napier.d("UniqueX size: ${uniqueX.size} UniqueY size: ${uniqueY.size}")
 
-            nextNumber = blocksMap[positionList.first()]?.number?.next() ?: Number.ZERO
+            nextRank = blocksMap[positionList.first()]?.number?.next() ?: Rank.ZERO
 
-            val mergeNumber =
+            val mergeRank =
                 when (min(uniqueX.size, uniqueY.size)) {
-                    in 0..2 -> nextNumber
-                    3 -> nextNumber.next()
-                    4 -> nextNumber.next().next()
-                    5 -> nextNumber.next().next().next()
-                    else -> nextNumber.next().next().next().next()
+                    in 0..2 -> nextRank
+                    3 -> nextRank.next()
+                    4 -> nextRank.next().next()
+                    5 -> nextRank.next().next().next()
+                    else -> nextRank.next().next().next().next()
                 }
 
             if (uniqueX.size < uniqueY.size || (uniqueX.size == uniqueY.size && last.x == secondLast.x))
                 {
                     for (i in uniqueY) {
-                        mergeMap[Position(last.x, i)] = Pair(mergeNumber, uniqueX.filter { x -> x != last.x }.map { x -> Position(x, i) })
+                        mergeMap[Position(last.x, i)] = Pair(mergeRank, uniqueX.filter { x -> x != last.x }.map { x -> Position(x, i) })
                     }
                 } else {
                 for (i in uniqueX) {
-                    mergeMap[Position(i, last.y)] = Pair(mergeNumber, uniqueY.filter { y -> y != last.y }.map { y -> Position(i, y) })
+                    mergeMap[Position(i, last.y)] = Pair(mergeRank, uniqueY.filter { y -> y != last.y }.map { y -> Position(i, y) })
                 }
             }
         }
         else -> {
             val last = positionList.removeAt(positionList.lastIndex)
-            mergeMap[last] = Pair(nextNumber, positionList)
+            mergeMap[last] = Pair(nextRank, positionList)
         }
     }
 

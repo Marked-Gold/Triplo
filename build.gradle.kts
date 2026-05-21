@@ -14,6 +14,10 @@ korge {
 
     orientation = Orientation.PORTRAIT
 
+    // iOS 26.5 dropped support for the iPhone 8 (KorGE 6.0's default simulator); bump to a
+    // current-generation device so `xcrun simctl create` succeeds.
+    preferredIphoneSimulatorVersion = 17
+
     // Google Play requires targetSdk 35+ for new apps (and 36+ from Aug 2026), so target 36.
     // minSdk 23 is the floor for Google Mobile Ads SDK 24+.
     androidSdk(compileSdk = 36, minSdk = 23, targetSdk = 36)
@@ -57,7 +61,29 @@ dependencies {
 // Google's public *sample* AdMob app id for iOS - serves test ads only. Replace for production.
 val iosAdMobAppId = "ca-app-pub-3940256099942544~1458002511"
 val googleMobileAdsSpmUrl = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git"
-val googleMobileAdsSpmVersion = "11.13.0"
+val googleMobileAdsSpmVersion = "13.4.0"
+val googleUmpSpmUrl = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git"
+val googleUmpSpmVersion = "3.0.0"
+
+// SKAdNetwork identifiers recommended by Google for AdMob's mediation/3p partners. Apple uses
+// these for install attribution under iOS 14+ privacy rules. Source:
+// https://developers.google.com/admob/ios/3p-skadnetworks
+val skAdNetworkIdentifiers = listOf(
+    "cstr6suwn9", "4fzdc2evr5", "2fnua5tdw4", "ydx93a7ass", "p78axxw29g",
+    "v72qych5uu", "ludvb6z3bs", "cp8zw746q7", "3sh42y64q3", "c6k4g5qg8m",
+    "s39g8k73mm", "wg4vff78zm", "3qy4746246", "f38h382jlk", "hs6bdukanm",
+    "mlmmfzh3r3", "v4nxqhlyqp", "wzmmz9fp6w", "su67r6k2v3", "yclnxrl5pm",
+    "t38b2kh725", "7ug5zh24hu", "gta9lk7p23", "vutu7akeur", "y5ghdn5j9k",
+    "v9wttpbfk9", "n38lu8286q", "47vhws6wlr", "kbd757ywx3", "9t245vhmpl",
+    "a2p9lx4jpn", "22mmun2rn5", "44jx6755aq", "k674qkevps", "4468km3ulz",
+    "2u9pt9hc89", "8s468mfl3y", "klf5c3l5u5", "ppxm28t8ap", "kbmxgpxpgc",
+    "uw77j35x4d", "578prtvx9j", "4dzt52r2t5", "tl55sbb4fm", "c3frkrj4fj",
+    "e5fvkxwrpn", "8c4e2ghe7u", "3rd42ekr43", "97r2b46745", "3qcr597p9d",
+)
+
+// Shown to the user the first time iOS asks for App Tracking Transparency permission.
+val iosTrackingUsageDescription =
+    "We use this identifier to show you relevant interstitial ads. You can change this any time in Settings."
 
 kotlin {
     for (targetName in listOf("iosArm64", "iosX64", "iosSimulatorArm64")) {
@@ -78,7 +104,7 @@ tasks.matching { it.name == "compileDebugKotlinAndroid" || it.name == "compileRe
             .compilerOptions.freeCompilerArgs.add("-Xskip-metadata-version-check")
     }
 
-/** Inserts the AdMob keys KorGE's generated iOS Info.plist is missing. */
+/** Inserts the AdMob / ATT / SKAdNetwork keys KorGE's generated iOS Info.plist is missing. */
 fun patchIosInfoPlist(plist: File) {
     if (!plist.exists()) return
     val text = plist.readText()
@@ -86,20 +112,22 @@ fun patchIosInfoPlist(plist: File) {
     val additions = buildString {
         append("\t<key>GADApplicationIdentifier</key>\n")
         append("\t<string>").append(iosAdMobAppId).append("</string>\n")
-        // SKAdNetworkItems improves ad attribution. Google's identifier is included here; for
-        // production add the full list from https://developers.google.com/admob/ios/3p-skadnetworks
+        append("\t<key>NSUserTrackingUsageDescription</key>\n")
+        append("\t<string>").append(iosTrackingUsageDescription).append("</string>\n")
         append("\t<key>SKAdNetworkItems</key>\n")
         append("\t<array>\n")
-        append("\t\t<dict>\n")
-        append("\t\t\t<key>SKAdNetworkIdentifier</key>\n")
-        append("\t\t\t<string>cstr6suwn9.skadnetwork</string>\n")
-        append("\t\t</dict>\n")
+        for (id in skAdNetworkIdentifiers) {
+            append("\t\t<dict>\n")
+            append("\t\t\t<key>SKAdNetworkIdentifier</key>\n")
+            append("\t\t\t<string>").append(id).append(".skadnetwork</string>\n")
+            append("\t\t</dict>\n")
+        }
         append("\t</array>\n")
     }
     plist.writeText(text.replaceFirst("</dict>", additions + "</dict>"))
 }
 
-/** Injects the GoogleMobileAds SwiftPM package and the bridge source into the generated project.yml. */
+/** Injects the GoogleMobileAds + UMP SwiftPM packages and the bridge source into the generated project.yml. */
 fun patchIosProjectYml(projectYml: File) {
     if (!projectYml.exists()) return
     val lines = projectYml.readText().lines()
@@ -108,22 +136,28 @@ fun patchIosProjectYml(projectYml: File) {
     for (line in lines) {
         out.append(line).append('\n')
         when {
-            // Top-level SwiftPM package declaration, right after the project name.
+            // Top-level SwiftPM package declarations, right after the project name. Both packages
+            // expose a single product whose name matches the package name, so xcodegen's
+            // `- package: <name>` shorthand resolves to the correct library.
             line.trim() == "name: app" -> {
                 out.append("packages:\n")
                 out.append("  GoogleMobileAds:\n")
                 out.append("    url: ").append(googleMobileAdsSpmUrl).append('\n')
                 out.append("    from: \"").append(googleMobileAdsSpmVersion).append("\"\n")
+                out.append("  GoogleUserMessagingPlatform:\n")
+                out.append("    url: ").append(googleUmpSpmUrl).append('\n')
+                out.append("    from: \"").append(googleUmpSpmVersion).append("\"\n")
             }
             // Add the Objective-C bridge sources to every app target.
             Regex("^(\\s*)- app\\s*$").matches(line) -> {
                 val indent = line.substringBefore("- app")
                 out.append(indent).append("- ../../../native/ios\n")
             }
-            // Link the GoogleMobileAds package into every app target.
+            // Link the GoogleMobileAds and UMP packages into every app target.
             line.trimStart().startsWith("- framework:") -> {
                 val indent = line.substringBefore("- framework:")
                 out.append(indent).append("- package: GoogleMobileAds\n")
+                out.append(indent).append("- package: GoogleUserMessagingPlatform\n")
             }
         }
     }

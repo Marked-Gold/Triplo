@@ -1,16 +1,20 @@
 #import "TriploAds.h"
 #import <UIKit/UIKit.h>
 @import GoogleMobileAds;
+@import UserMessagingPlatform;
+@import AppTrackingTransparency;
 
 /**
- * Implementation of the AdMob interstitial bridge.
+ * Implementation of the AdMob interstitial bridge, the User Messaging Platform consent flow and
+ * the App Tracking Transparency prompt.
  *
  * This file is compiled by Xcode (not by Kotlin/Native cinterop) so it is free to import the
- * GoogleMobileAds SDK. It is added to the generated iOS app target by the `patchIosProject`
- * Gradle task, and the SDK is pulled in via Swift Package Manager (see build.gradle.kts).
+ * third-party SDK headers. It is added to the generated iOS app target by the `patchIosProject`
+ * Gradle task, and the SDKs are pulled in via Swift Package Manager (see build.gradle.kts).
  *
- * Written against Google Mobile Ads SDK 11.x. If a newer SDK renames these Objective-C symbols,
- * adjust them here.
+ * Written against Google Mobile Ads SDK 13.x and User Messaging Platform SDK 3.x. Objective-C
+ * class names (GADInterstitialAd, GADRequest, ...) are unchanged from 11.x; only the Swift names
+ * changed in v12.
  */
 @interface TriploAds () <GADFullScreenContentDelegate>
 @end
@@ -28,11 +32,57 @@
     return shared;
 }
 
-+ (void)initializeSdk {
+#pragma mark - Consent / ATT / startup
+
++ (void)requestConsentAndStartAds:(NSString *)adUnitId
+                       completion:(void (^)(void))completion {
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[GADMobileAds sharedInstance] startWithCompletionHandler:nil];
+        UMPRequestParameters *params = [[UMPRequestParameters alloc] init];
+        // For production we use the user's real geo; debug-only test geographies are configured
+        // in the AdMob console under Privacy & messaging.
+        [UMPConsentInformation.sharedInstance
+            requestConsentInfoUpdateWithParameters:params
+                                 completionHandler:^(NSError *_Nullable error) {
+            if (error != nil) {
+                NSLog(@"[TriploAds] consent info update failed: %@", error);
+            }
+            UIViewController *root = [TriploAds rootViewController];
+            [UMPConsentForm loadAndPresentIfRequiredFromViewController:root
+                                                     completionHandler:^(NSError *_Nullable formError) {
+                if (formError != nil) {
+                    NSLog(@"[TriploAds] consent form error: %@", formError);
+                }
+                [TriploAds requestATTThenStartAds:adUnitId completion:completion];
+            }];
+        }];
     });
 }
+
++ (void)requestATTThenStartAds:(NSString *)adUnitId
+                    completion:(void (^)(void))completion {
+    void (^proceed)(void) = ^{
+        if (!UMPConsentInformation.sharedInstance.canRequestAds) {
+            NSLog(@"[TriploAds] canRequestAds == NO; skipping Mobile Ads start");
+            if (completion) completion();
+            return;
+        }
+        [[GADMobileAds sharedInstance] startWithCompletionHandler:^(GADInitializationStatus *_) {
+            if (completion) completion();
+        }];
+    };
+
+    if (@available(iOS 14, *)) {
+        if (ATTrackingManager.trackingAuthorizationStatus == ATTrackingManagerAuthorizationStatusNotDetermined) {
+            [ATTrackingManager requestTrackingAuthorizationWithCompletionHandler:^(ATTrackingManagerAuthorizationStatus status) {
+                dispatch_async(dispatch_get_main_queue(), proceed);
+            }];
+            return;
+        }
+    }
+    proceed();
+}
+
+#pragma mark - Interstitial loading & presentation
 
 + (void)loadInterstitial:(NSString *)adUnitId {
     [[self shared] loadInterstitial:adUnitId];

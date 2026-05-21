@@ -14,7 +14,7 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 | Studio | AllMeat Games — allmeatgames.com |
 | Marketing / redirect domain | triplo.club |
 | Developer-account email | mark@allmeatgames.com |
-| App version | 1.0.1 (versionCode 3) — bump `androidVersionCode` in `build.gradle.kts` for every Play upload |
+| App version | 1.0.2 (versionCode 4) — bump `androidVersionCode` in `build.gradle.kts` for every Play upload |
 | Android AdMob app ID | `ca-app-pub-7742910323184344~4789526938` |
 | Android interstitial ad unit | `ca-app-pub-7742910323184344/7551421648` |
 | Upload keystore | `triplo-upload-key.jks` — gitignored; file + password stored in 1Password; alias `triplo-upload` |
@@ -25,6 +25,8 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 - Android: `compileSdk`/`targetSdk` 36, `minSdk` 23; Google Mobile Ads SDK 25.2.0.
   - GMA 25.x ships Kotlin 2.2 metadata; KorGE pins Kotlin 2.0, so the Android compile passes
     `-Xskip-metadata-version-check` (build-time only, no runtime effect).
+- iOS: Google Mobile Ads SDK 13.4.0 + UMP SDK 3.0.0 (Swift Package Manager), bundle-bridged through
+  `native/ios/TriploAds.{h,m}`; `preferredIphoneSimulatorVersion = 17` (iOS 26.5 dropped iPhone 8).
 - Build the signed release bundle: `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew bundleRelease`
 
 ---
@@ -60,12 +62,23 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
   the UMP `requestConsentInfoUpdate` call logs a "Publisher misconfiguration" warning.
 - ❌ Apple Developer Program — enroll as Individual ($99/yr).
 
-### iOS — ❌ not started
-- ❌ Install Xcode (full install required — not just Command Line Tools).
-- ❌ Verify the iOS build & the KorGE AdMob Objective-C bridge (see `README.md`).
-- ❌ Add the iOS app in AdMob; wire its real app ID + interstitial ad unit ID.
-- ❌ iOS UMP consent + App Tracking Transparency (`NSUserTrackingUsageDescription`).
-- ❌ Full `SKAdNetworkItems` list in the Info.plist patch (`build.gradle.kts`).
+### iOS — ⏳ in progress
+- ✅ Xcode 26.5 installed; iOS 26.5 simulator runtime installed; license accepted.
+- ✅ iOS simulator build verified — app boots on iOS 26.5 and the UMP consent pre-prompt fires.
+- ✅ Bumped Google Mobile Ads SPM 11.13.0 → **13.4.0**.
+- ✅ Added UMP (User Messaging Platform) SPM 3.0.0 via the same project.yml patch.
+- ✅ Obj-C bridge now drives the UMP consent flow → ATT prompt → `MobileAds.start` end-to-end
+  (`requestConsentAndStartAds:completion:` in `native/ios/TriploAds.m`).
+- ✅ `NSUserTrackingUsageDescription` added to the patched `Info.plist`.
+- ✅ Full `SKAdNetworkItems` list (50 identifiers from Google's 3p list) in the Info.plist patch.
+- ✅ Renamed Kotlin `enum class Number` → `Rank` to avoid the `GameMainNumber` Obj-C symbol
+  collision with `kotlin.Number` at framework-link time.
+- ✅ `native/GoogleMobileAdsBridge.def` now passes `-undefined dynamic_lookup` so the Kotlin/Native
+  framework defers `TriploAds` symbol resolution to the app-binary link step.
+- ❌ Add the iOS app in AdMob; wire its real app ID + interstitial ad unit ID (currently using
+  Google's *sample* IDs).
+- ❌ Privacy & messaging UMP consent messages configured in the AdMob console (GDPR + US states).
+- ❌ Verify on a physical iPhone (USB) — simulator only so far.
 - ❌ iOS signing / provisioning via the Apple Developer account.
 
 ### Store listings — ❌ not started

@@ -1,4 +1,4 @@
-import Number.*
+import Rank.*
 import korlibs.korge.input.*
 import korlibs.korge.view.*
 import korlibs.korge.view.align.*
@@ -229,7 +229,7 @@ private fun Stage.showPageStep(page: InfoPage, footer: String, showSkip: Boolean
 
 private fun Stage.showMergeStep(
     targets: List<Position>,
-    number: Number,
+    number: Rank,
     title: String,
     line: String,
 ) {
@@ -414,7 +414,7 @@ private fun Container.pulseHighlight(
 }
 
 /** Replaces the blocks at [positions] with fresh blocks of [number], redrawing them in place. */
-private fun Stage.scriptTutorialCells(positions: List<Position>, number: Number) {
+private fun Stage.scriptTutorialCells(positions: List<Position>, number: Rank) {
     positions.forEach { position ->
         blocksMap[position]?.let { deleteBlock(it) }
         val block = Block(nextBlockId, number)
@@ -638,10 +638,10 @@ private fun wrap(text: String, maxChars: Int): List<String> {
     return lines
 }
 
-private fun Container.miniBlock(number: Number, size: Double) =
+private fun Container.miniBlock(number: Rank, size: Double) =
     container {
         roundRect(Size(size, size), RectCorners(4.0), fill = number.color)
-        // Centre on the glyph's actual ink (like Block.drawNumber), since KorGE's text
+        // Centre on the glyph's actual ink (like Block.drawRank), since KorGE's text
         // alignment centres the advance box and leaves "1" looking off-centre.
         val label = text(number.display, size * 0.42, number.TextColor, font)
         val bounds = label.getLocalBounds()

@@ -1,4 +1,4 @@
-import Number.*
+import Rank.*
 import korlibs.korge.view.*
 import korlibs.image.color.*
 

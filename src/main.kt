@@ -667,7 +667,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                     stage?.views?.storage?.set(sfxEnabledKey, Sfx.enabled.toString())
                     showEnabledState()
                     // A short pop confirms the switch the moment SFX is turned back on.
-                    if (Sfx.enabled) Sfx.merge(Number.ONE)
+                    if (Sfx.enabled) Sfx.merge(Rank.ONE)
                     Napier.d("Sfx toggled ${if (Sfx.enabled) "on" else "off"}")
                 }
             }

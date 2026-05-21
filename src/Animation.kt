@@ -10,7 +10,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
-fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position>>>) =
+fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Rank, List<Position>>>) =
     launchImmediately {
         startAnimating()
         // One bomb is awarded for every block of 243 (tier FIVE) or higher created
@@ -19,12 +19,12 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
         // The highest-tier block (81 / tier FOUR or above) forged by this merge,
         // and where it landed: once the merge settles its colour ripples out
         // across the background from that spot.
-        var topTier: Number? = null
+        var topTier: Rank? = null
         var topHead: Position? = null
         // Highest tier forged anywhere in this merge — drives the single merge SFX pop. Tracked
         // separately from topTier so it captures sub-81 merges too (and so square-merges that
         // forge two heads at once don't double-trigger the sound).
-        var highestMergeTier: Number? = null
+        var highestMergeTier: Rank? = null
         animate {
             parallel {
                 Napier.v("Animating the blocks merging together")
@@ -48,8 +48,8 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                 mergeMap.forEach { (headPosition, valueAndMergePositions) ->
                     valueAndMergePositions.second.forEach { position -> deleteBlock(blocksMap[position]!!) }
                     val value = valueAndMergePositions.first
-                    if (value.ordinal >= Number.FIVE.ordinal) bombsEarned++
-                    if (value.ordinal >= Number.FOUR.ordinal &&
+                    if (value.ordinal >= Rank.FIVE.ordinal) bombsEarned++
+                    if (value.ordinal >= Rank.FOUR.ordinal &&
                         (topTier == null || value.ordinal > topTier!!.ordinal)
                     ) {
                         topTier = value
@@ -58,7 +58,7 @@ fun Stage.animateMerge(mergeMap: MutableMap<Position, Pair<Number, List<Position
                     if (highestMergeTier == null || value.ordinal > highestMergeTier!!.ordinal) {
                         highestMergeTier = value
                     }
-                    val newBlock = blocksMap[headPosition]!!.updateNumber(value).unselect().copy()
+                    val newBlock = blocksMap[headPosition]!!.updateRank(value).unselect().copy()
                     deleteBlock(blocksMap[headPosition]!!)
                     blocksMap[headPosition] = newBlock
                     drawBlock(newBlock, headPosition)

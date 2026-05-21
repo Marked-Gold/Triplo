@@ -34,7 +34,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21
 ./gradlew installAndroidDebug    # Build & install the APK on a connected device
 ./gradlew runAndroidEmulatorDebug
 
-./gradlew iosRunSimulatorDebug   # Build & run on the iOS simulator (needs Xcode)
+./gradlew runIosSimulatorDebug   # Build & run on the iOS simulator (needs Xcode)
 ```
 
 ## Project layout
@@ -77,7 +77,7 @@ so the bridge has four parts:
 
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-./gradlew iosRunSimulatorDebug
+./gradlew runIosSimulatorDebug
 ```
 
 AdMob's test ad unit serves real test interstitials in the simulator with no account needed.

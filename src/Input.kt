@@ -177,26 +177,26 @@ fun Stage.hoverBlock(maybePosition: Position?) {
 fun Stage.updateSelectionPreview() {
     if (hoveredPositions.isEmpty()) return
 
-    val previews = mutableMapOf<Position, Pair<Number, Boolean>>()
+    val previews = mutableMapOf<Position, Pair<Rank, Boolean>>()
     if (hoveredPositions.size < smallSelectionSize) {
         hoveredPositions.forEach { position ->
-            val nextNumber = blocksMap[position]?.number?.next() ?: return@forEach
-            previews[position] = Pair(nextNumber, false)
+            val nextRank = blocksMap[position]?.number?.next() ?: return@forEach
+            previews[position] = Pair(nextRank, false)
         }
     } else {
         // determineMerge mutates its argument, so hand it a copy.
         val mergeMap = determineMerge(hoveredPositions.toMutableList())
         mergeMap.forEach { (head, resultAndConsumed) ->
-            val resultNumber = resultAndConsumed.first
-            previews[head] = Pair(resultNumber, true)
-            resultAndConsumed.second.forEach { consumed -> previews[consumed] = Pair(resultNumber, false) }
+            val resultRank = resultAndConsumed.first
+            previews[head] = Pair(resultRank, true)
+            resultAndConsumed.second.forEach { consumed -> previews[consumed] = Pair(resultRank, false) }
         }
     }
 
     hoveredPositions.forEach { position ->
         val block = blocksMap[position] ?: return@forEach
         val preview = previews[position]
-        block.previewNumber = preview?.first
+        block.previewRank = preview?.first
         block.isResultBlock = preview?.second ?: false
         updateBlock(block, position)
     }

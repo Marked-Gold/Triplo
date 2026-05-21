@@ -2,8 +2,13 @@
 #
 # Only the bridge header is exposed to Kotlin/Native - the GoogleMobileAds SDK itself is never
 # seen by cinterop (TriploAds.h imports only Foundation). The bridge implementation
-# (TriploAds.m) is compiled and linked by Xcode in the generated iOS app target.
+# (TriploAds.m) is compiled and linked by Xcode in the generated iOS app target. Because the
+# Obj-C symbols for TriploAds aren't present when Kotlin/Native links the GameMain framework,
+# we pass `-undefined dynamic_lookup` so the framework defers TriploAds symbol resolution to
+# the app-binary link step (where Xcode does have TriploAds.m).
 language = Objective-C
 package = triploads
 headers = TriploAds.h
 headerFilter = TriploAds.h
+linkerOpts.osx = -undefined dynamic_lookup
+linkerOpts.ios = -undefined dynamic_lookup

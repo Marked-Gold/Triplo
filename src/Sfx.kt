@@ -55,7 +55,7 @@ object Sfx {
     private const val SEMITONES_PER_TIER = 2
 
     /** Pitch ceiling: tier TEN (59049) is the top of the climb; tiers beyond reuse it. */
-    private val pitchCapTier: Int get() = Number.TEN.ordinal
+    private val pitchCapTier: Int get() = Rank.TEN.ordinal
 
     private fun Sound.fire(volume: Double) {
         if (!enabled) return
@@ -76,16 +76,16 @@ object Sfx {
     }
 
     /** Soft pop on every merge. Two semitones per tier from tier ONE; capped at tier TEN. */
-    fun merge(tier: Number) {
+    fun merge(tier: Rank) {
         val capped = tier.ordinal.coerceAtMost(pitchCapTier)
         mergeData?.playPitched(pitch = semitones(capped * SEMITONES_PER_TIER), volume = 0.6)
     }
 
     /** Singing-bowl swell on every 81+ forge. Two semitones per tier above FOUR, capped at TEN —
      * tier TEN's pulse plays exactly one octave above tier FOUR's. */
-    fun pulse(tier: Number) {
-        val above = (tier.ordinal - Number.FOUR.ordinal)
-            .coerceIn(0, pitchCapTier - Number.FOUR.ordinal)
+    fun pulse(tier: Rank) {
+        val above = (tier.ordinal - Rank.FOUR.ordinal)
+            .coerceIn(0, pitchCapTier - Rank.FOUR.ordinal)
         pulseData?.playPitched(pitch = semitones(above * SEMITONES_PER_TIER), volume = 0.9)
     }
 
