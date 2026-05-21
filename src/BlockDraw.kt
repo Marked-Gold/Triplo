@@ -52,6 +52,8 @@ fun Stage.unsuccessfulShape() {
 }
 
 fun Stage.successfulShape() {
+    // Snapshot the pre-merge state so the player can undo this chain from the pause menu.
+    Undo.push()
     Haptics.success()
     if (hoveredPositions.size >= rocketPowerUpLength) tryAddRockets(1)
     val pattern = determinePattern(hoveredPositions.toMutableList())
@@ -129,6 +131,8 @@ fun Stage.drawRocketSelection(maybePosition: Position?) {
             updateBlock(blocksMap[maybePosition]!!.unselect(), maybePosition)
         }
         (rocketSelection.secondPosition == null) -> {
+            // Snapshot the pre-swap state so the player can undo this rocket launch.
+            Undo.push()
             rocketSelection.selectSecond(maybePosition)
             Haptics.success()
             animateRocket(rocketSelection.copy())

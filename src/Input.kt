@@ -95,6 +95,8 @@ fun Stage.handleUp(point: Point)  {
             if (maybePosition == null) {
                 removeBombHover()
             } else {
+                // Snapshot the pre-detonation state so the player can undo this bomb.
+                Undo.push()
                 Haptics.success()
                 animateBomb()
                 removeBomb()

@@ -525,20 +525,59 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             label.centerYOn(within)
         }
 
-        // Four equally-sized buttons, evenly stacked. Each is shorter than the old three-button
-        // layout so the HAPTICS toggle fits alongside RESTART / GUIDE / SHARE.
+        // Pause shows five rows (UNDO + RESTART / GUIDE / SHARE / HAPTICS+SFX) using tighter
+        // heights and gaps. Game over hides UNDO (the only state to undo to is the one that just
+        // ended the game) and reverts to the original four-row spacing so it looks unchanged.
         val buttonWidth = fieldWidth * 2.0 / 3
-        val buttonHeight = fieldHeight * 0.15
-        val buttonGap = fieldHeight * 0.035
-        fun buttonTopOffset(index: Int) = fieldHeight * 0.185 + index * (buttonHeight + buttonGap)
+        val buttonHeight = if (isGameOver) fieldHeight * 0.15 else fieldHeight * 0.135
+        val buttonGap = if (isGameOver) fieldHeight * 0.035 else fieldHeight * 0.025
+        val firstRowTop = if (isGameOver) fieldHeight * 0.185 else fieldHeight * 0.165
+        fun buttonTopOffset(index: Int) = firstRowTop + index * (buttonHeight + buttonGap)
+        val labelSize = if (isGameOver) 27.0 else 25.0
+        // Without UNDO at row 0, the remaining rows shift up by one on game over.
+        val rowOffset = if (isGameOver) 1 else 0
 
+        val bgUndoContainer: Container? = if (isGameOver) null else container {
+            val canUndo = Undo.canUndo()
+            val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                centerXOn(restartBackground)
+                alignTopToTopOf(restartBackground, buttonTopOffset(0))
+            }
+            val label = text("UNDO", labelSize, pauseScreenTextColor, font) {
+                if (canUndo) {
+                    onOver { color = pauseScreenTextHoverColor }
+                    onOut { color = pauseScreenTextColor }
+                    onDown { color = pauseScreenTextDownColor }
+                    onUp { color = pauseScreenTextDownColor }
+                }
+            }
+            val icon = undoIcon(fieldWidth * 0.13, pauseScreenTextColor)
+            layoutButtonContent(label, icon, textContainer)
+            // Dim the whole button when there is nothing to undo, matching the haptics/sfx
+            // "off" treatment so the disabled state reads at a glance without separate art.
+            if (!canUndo) alpha = 0.35
+            onClick {
+                if (!Undo.canUndo()) {
+                    Napier.d("Undo Button clicked but no history")
+                    return@onClick
+                }
+                // Capture the stage BEFORE detaching the popup: `View.stage` walks up the
+                // parent chain, so calling it after `clearPopup()` returns null and the
+                // restore silently no-ops.
+                val s = stage ?: return@onClick
+                Napier.d("Undo Button clicked")
+                showingRestart = false
+                s.undoLastMove()
+                clearPopup()
+            }
+        }
         val bgRestartContainer =
             container {
                 val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, buttonTopOffset(0))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(1 - rowOffset))
                 }
-                val label = text("RESTART", 27.0, pauseScreenTextColor, font) {
+                val label = text("RESTART", labelSize, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
                     onOut { color = pauseScreenTextColor }
                     onDown { color = pauseScreenTextDownColor }
@@ -563,9 +602,9 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             container {
                 val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, buttonTopOffset(1))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(2 - rowOffset))
                 }
-                val label = text("GUIDE", 27.0, pauseScreenTextColor, font) {
+                val label = text("GUIDE", labelSize, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
                     onOut { color = pauseScreenTextColor }
                     onDown { color = pauseScreenTextDownColor }
@@ -585,9 +624,9 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             container {
                 val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, buttonTopOffset(2))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(3 - rowOffset))
                 }
-                val label = text("SHARE", 27.0, pauseScreenTextColor, font) {
+                val label = text("SHARE", labelSize, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
                     onOut { color = pauseScreenTextColor }
                     onDown { color = pauseScreenTextDownColor }
@@ -611,10 +650,10 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 onClick { shareAndConfirm() }
             }
 
-        // The 4th row holds two icon-only toggles side-by-side: HAPTICS on the left, SOUND on the
-        // right. The pair shares the same horizontal footprint as the three labelled buttons above
-        // it; the icon dims to 0.3 alpha when its feature is off, so each button's strength shows
-        // the current state at a glance (no separate "muted" art needed).
+        // The bottom row holds two icon-only toggles side-by-side: HAPTICS on the left, SOUND on
+        // the right. The pair shares the same horizontal footprint as the four labelled buttons
+        // above it; the icon dims to 0.3 alpha when its feature is off, so each button's strength
+        // shows the current state at a glance (no separate "muted" art needed).
         val slotGap = buttonWidth * 0.08
         val slotWidth = (buttonWidth - slotGap) / 2.0
         // After centerXOn, shift each half outward by this much so the two rects sit symmetrically
@@ -627,7 +666,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
                     x -= slotShift
-                    alignTopToTopOf(restartBackground, buttonTopOffset(3))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(4 - rowOffset))
                 }
                 val icon = hapticsIcon(toggleIconSize, pauseScreenTextColor)
                 icon.centerOn(textContainer)
@@ -652,7 +691,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
                     x += slotShift
-                    alignTopToTopOf(restartBackground, buttonTopOffset(3))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(4 - rowOffset))
                 }
                 val icon = speakerIcon(toggleIconSize, pauseScreenTextColor)
                 icon.centerOn(textContainer)
@@ -689,6 +728,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 centerXOn(restartBackground)
                 alignBottomToTopOf(bgRestartContainer, cellSize * 0.75)
             }
+            // bgUndoContainer is null on game over, so the staggered intro list omits it.
             animateGameOverIntro(
                 restartBackground,
                 headingGlyphs,
@@ -701,6 +741,8 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
 fun Container.restart() {
     Napier.d("Running Restart Function...")
     resetIdleTimer()
+    // Drop any pending undo history — the new board has no connection to the previous game.
+    Undo.clear()
     score.update(0)
     bombsLoadedCount.update(startingBombCount)
     rocketsLoadedCount.update(startingRocketCount)

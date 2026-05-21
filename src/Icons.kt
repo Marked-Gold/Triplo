@@ -81,6 +81,46 @@ fun Container.restartIcon(
         }
     }
 
+/** Undo icon — the [restartIcon] mirrored along the x axis. Same arc, line weight, and arrowhead
+ * geometry as restart, just reflected so the arrowhead lands on the opposite side and the sweep
+ * reads as counter-clockwise. Building it from the same primitives keeps the two icons visually
+ * cohesive while still distinguishable at a glance. */
+fun Container.undoIcon(
+    s: Double,
+    color: RGBA = iconInk,
+): Container =
+    iconBox(s) {
+        // Inner container flipped along x; everything drawn inside renders mirrored.
+        container {
+            scaleX = -1.0
+            x = s
+            graphics {
+                val cx = s / 2.0
+                val cy = s / 2.0
+                val r = s * 0.30
+                val lw = s * 0.155
+                stroke(color, lineWidth = lw, lineCap = LineCap.ROUND) {
+                    arc(Point(cx, cy), r, (-58).degrees, 232.degrees, false)
+                }
+                val a = 232.0 * PI / 180.0
+                val ex = cx + r * cos(a)
+                val ey = cy + r * sin(a)
+                val tx = -sin(a)
+                val ty = cos(a)
+                val px = -ty
+                val py = tx
+                val hl = s * 0.21
+                val hw = s * 0.16
+                fill(color) {
+                    moveTo(ex + tx * hl, ey + ty * hl)
+                    lineTo(ex - tx * hl * 0.5 + px * hw, ey - ty * hl * 0.5 + py * hw)
+                    lineTo(ex - tx * hl * 0.5 - px * hw, ey - ty * hl * 0.5 - py * hw)
+                    close()
+                }
+            }
+        }
+    }
+
 /** Help icon — a question mark. */
 fun Container.helpIcon(
     s: Double,
