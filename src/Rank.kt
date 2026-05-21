@@ -26,13 +26,13 @@ enum class Rank(
     TEN("Red Heart", 59049, Colors["#CD5C5C"], Colors["#FFFFFF"], "59049", "\uD83D\uDC9D"),
     ELEVEN("White Heart", 177147, Colors["#F0F0F0"], Colors["#010101"], "3^11", "\uD83E\uDD0D"),
     TWELVE("Pink Heart", 531441, Colors["#FF8FAB"], Colors["#2A0A14"], "3^12", "\uD83E\uDE77"),
-    THIRTEEN("Black Heart", 1594323, Colors["#4A4A4A"], Colors["#FFFFFF"], "3^13", "\uD83D\uDC9A"),
+    THIRTEEN("Black Heart", 1594323, Colors["#4A4A4A"], Colors["#FFFFFF"], "3^13", "\uD83D\uDDA4"),
     FOURTEEN("Green Heart", 4782969, Colors["#08A255"], Colors["#FFFFFF"], "3^14", "\uD83D\uDC9A"),
     FIFTEEN("Blue Heart", 14348907, Colors["#6495ED"], Colors["#FFFFFF"], "3^15", "\uD83D\uDC99"),
-    SIXTEEN("Brown Heart", 43046721, Colors["#8B4513"], Colors["#FFFFFF"], "3^16", "\uD83D\uDC94"),
-    SEVENTEEN("Panda", 129140163, Colors["#BEBEBE"], Colors["#FFFFFF"], "3^17", "\uD83D\uDC3C"),
-    EIGHTEEN("Melting Face", 387420489, Colors["#FFDAB9"], Colors["#040811"], "3^18", "\uD83E\uDD75"),
-    NINETEEN("100 Emoji", 1162261467, Colors["#7B3F05"], Colors["#FFFFFF"], "3^19", "\uD83D\uDD1F"),
+    SIXTEEN("Brown Heart", 43046721, Colors["#8B4513"], Colors["#FFFFFF"], "3^16", "\uD83E\uDD0E"),
+    SEVENTEEN("Trophy", 129140163, Colors["#FFD700"], Colors["#3D2A00"], "3^17", "\uD83C\uDFC6"),
+    EIGHTEEN("Crown", 387420489, Colors["#4B0082"], Colors["#FFFFFF"], "3^18", "\uD83D\uDC51"),
+    NINETEEN("100 Emoji", 1162261467, Colors["#7B3F05"], Colors["#FFFFFF"], "3^19", "\uD83D\uDCAF"),
     ;
 
     fun next() = values()[(ordinal + 1) % values().size]
