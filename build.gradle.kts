@@ -18,6 +18,12 @@ korge {
     // current-generation device so `xcrun simctl create` succeeds.
     preferredIphoneSimulatorVersion = 17
 
+    // Apple Personal Team ID used to sign the iOS app for free-provisioning device testing
+    // (no paid Apple Developer Program enrollment). When the paid account is set up, replace
+    // this with the production team. The corresponding development certificate is in the
+    // login keychain (Apple Development: amy_cotton@live.ca).
+    appleDevelopmentTeamId = "2RT6SSLPCC"
+
     // Google Play requires targetSdk 35+ for new apps (and 36+ from Aug 2026), so target 36.
     // minSdk 23 is the floor for Google Mobile Ads SDK 24+.
     androidSdk(compileSdk = 36, minSdk = 23, targetSdk = 36)
@@ -104,27 +110,46 @@ tasks.matching { it.name == "compileDebugKotlinAndroid" || it.name == "compileRe
             .compilerOptions.freeCompilerArgs.add("-Xskip-metadata-version-check")
     }
 
-/** Inserts the AdMob / ATT / SKAdNetwork keys KorGE's generated iOS Info.plist is missing. */
+/** Inserts the AdMob / ATT / SKAdNetwork keys KorGE's generated iOS Info.plist is missing, and
+ *  rewrites the orientation arrays to portrait-only (KorGE writes all three/four orientations
+ *  regardless of `orientation = Orientation.PORTRAIT`). */
 fun patchIosInfoPlist(plist: File) {
     if (!plist.exists()) return
-    val text = plist.readText()
-    if (text.contains("GADApplicationIdentifier")) return
-    val additions = buildString {
-        append("\t<key>GADApplicationIdentifier</key>\n")
-        append("\t<string>").append(iosAdMobAppId).append("</string>\n")
-        append("\t<key>NSUserTrackingUsageDescription</key>\n")
-        append("\t<string>").append(iosTrackingUsageDescription).append("</string>\n")
-        append("\t<key>SKAdNetworkItems</key>\n")
-        append("\t<array>\n")
-        for (id in skAdNetworkIdentifiers) {
-            append("\t\t<dict>\n")
-            append("\t\t\t<key>SKAdNetworkIdentifier</key>\n")
-            append("\t\t\t<string>").append(id).append(".skadnetwork</string>\n")
-            append("\t\t</dict>\n")
+    var text = plist.readText()
+
+    // AdMob / ATT / SKAdNetwork keys are inserted once - skip if already present.
+    if (!text.contains("GADApplicationIdentifier")) {
+        val additions = buildString {
+            append("\t<key>GADApplicationIdentifier</key>\n")
+            append("\t<string>").append(iosAdMobAppId).append("</string>\n")
+            append("\t<key>NSUserTrackingUsageDescription</key>\n")
+            append("\t<string>").append(iosTrackingUsageDescription).append("</string>\n")
+            append("\t<key>SKAdNetworkItems</key>\n")
+            append("\t<array>\n")
+            for (id in skAdNetworkIdentifiers) {
+                append("\t\t<dict>\n")
+                append("\t\t\t<key>SKAdNetworkIdentifier</key>\n")
+                append("\t\t\t<string>").append(id).append(".skadnetwork</string>\n")
+                append("\t\t</dict>\n")
+            }
+            append("\t</array>\n")
         }
-        append("\t</array>\n")
+        text = text.replaceFirst("</dict>", additions + "</dict>")
     }
-    plist.writeText(text.replaceFirst("</dict>", additions + "</dict>"))
+
+    // Lock both iPhone and iPad to portrait. Re-running idempotently because the right-hand side
+    // already collapses to a single Portrait entry, so re-applying the regex is a no-op.
+    text = text.replace(
+        Regex("<key>UISupportedInterfaceOrientations(~ipad)?</key>\\s*<array>[\\s\\S]*?</array>")
+    ) { match ->
+        val suffix = match.groupValues[1]
+        "<key>UISupportedInterfaceOrientations$suffix</key>\n" +
+            "\t<array>\n" +
+            "\t\t<string>UIInterfaceOrientationPortrait</string>\n" +
+            "\t</array>"
+    }
+
+    plist.writeText(text)
 }
 
 /** Injects the GoogleMobileAds + UMP SwiftPM packages and the bridge source into the generated project.yml. */
@@ -178,8 +203,12 @@ fun findXcodeGen(): String {
 }
 
 // KorGE's prepareKotlinNativeIosProject task generates project.yml + Info.plist and runs xcodegen.
-// We append a step that patches them for AdMob and re-runs xcodegen so the .xcodeproj picks it up.
+// We append a step that patches them for AdMob/ATT/SKAdNetwork + portrait-lock and re-runs
+// xcodegen so the .xcodeproj picks it up. The `upToDateWhen { false }` forces the task to run
+// every build; otherwise gradle skips it when it thinks nothing changed, which also skips our
+// doLast and leaves a stale Info.plist in the built .app bundle.
 tasks.matching { it.name == "prepareKotlinNativeIosProject" }.configureEach {
+    outputs.upToDateWhen { false }
     doLast {
         val iosDir = layout.buildDirectory.dir("platforms/ios").get().asFile
         patchIosInfoPlist(File(iosDir, "app/Info.plist"))

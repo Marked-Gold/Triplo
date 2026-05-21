@@ -13,15 +13,18 @@ import kotlin.random.Random
 // is drawn once as a plain white shape; its real colour is applied through
 // colorMul, so the pulse can re-tint it without rebuilding the shape.
 //
-// While idle the field is fully static, so triLayer is a CachedContainer: the
-// ~270 triangles bake into a single texture and cost one draw call per frame.
 // When a high-tier block (81+) is forged, triggerBackgroundPulse lights a colour
 // wave that propagates facet-to-facet through the mesh from the triangle the
 // block landed on: the wave spreads along triangle adjacency (Dijkstra over
 // shared edges), so it genuinely travels through the triangles rather than
 // sweeping the screen. The colour also weakens the further it travels, so the
-// edges glow only faintly. The cache is dropped for the pulse's ~1.5s so the
-// wave renders live, then the base colours are restored and caching resumes.
+// edges glow only faintly.
+//
+// (Originally the field was wrapped in a CachedContainer to bake the static
+// triangles into one draw call; that path rendered an empty framebuffer on
+// iOS Metal — black until a pulse momentarily disabled caching — and the
+// recovery hooks for Android surface loss were already fragile, so the cache
+// is gone. 270 small triangles is trivial work on any modern GPU.)
 
 private class Tri(
     val view: View,
@@ -62,9 +65,6 @@ private var gradBotColor = Rank.THREE.color
 private var pulseGradFrom = gradBotColor
 private var pulseGradTo = gradBotColor
 private var pulseChangesGrad = false
-
-// Set by resetBackgroundGradient so the updater re-bakes the (idle) cache.
-private var pendingRecache = false
 
 private const val waveSpeed = 812.5    // px/sec the colour wave travels through the mesh
 private const val pulseRise = 0.256    // sec a facet takes to reach full colour
@@ -140,9 +140,7 @@ fun Stage.setupBackground() {
         }
     }
 
-    // Cached: while idle the ~270 triangles bake into one texture (one draw call).
-    // The pulse drops the cache for its duration — see the updater below.
-    val triLayer = cachedContainer { }
+    val triLayer = container { }
     val vStride = cols + 1
     fun vertexPoint(id: Int): Point = pts[id / vStride][id % vStride]
 
@@ -205,37 +203,16 @@ fun Stage.setupBackground() {
 
     buildAdjacency()
 
-    // The cache is a GPU framebuffer with no CPU-side copy, so an Android surface
-    // loss (backgrounding, an app switch) wipes it and the background renders
-    // blank. The GL context version bumps whenever that happens — watch it and
-    // force the cache to re-bake so the field reappears on resume.
-    var lastContextVersion = -1
-
-    // Idle frames otherwise do nothing: the triangles keep their base colour and
-    // triLayer stays cached. Only an active pulse animates the facets — for its
-    // lifetime the cache is dropped so the wave renders live, then the base
-    // colours are restored and caching resumes.
+    // Idle frames are a no-op: the triangles hold their base colours and the
+    // renderer redraws them as-is. Only an active pulse re-tints facets.
     addUpdater { dt ->
-        val contextVersion = views.ag.contextVersion
-        if (contextVersion != lastContextVersion) {
-            lastContextVersion = contextVersion
-            triLayer.invalidateRender()
-        }
-
-        // A restart reset the gradient while idle (or mid-pulse): re-bake the cache.
-        if (pendingRecache) {
-            pendingRecache = false
-            triLayer.cache = true
-            triLayer.invalidateRender()
-        }
-
         elapsed += dt.seconds
         if (!pulseActive) return@addUpdater
 
         val pulseT = elapsed - pulseStart
         if (pulseT > pulseMaxDist / waveSpeed + pulseRise + pulseFall) {
-            // Pulse finished: commit any gradient shift it carried, settle every
-            // facet onto its (possibly new) base colour and re-enable caching.
+            // Pulse finished: commit any gradient shift it carried and settle
+            // every facet onto its (possibly new) base colour.
             pulseActive = false
             if (pulseChangesGrad) {
                 gradBotColor = pulseGradTo
@@ -245,12 +222,9 @@ fun Stage.setupBackground() {
                 t.baseColor = baseColorAt(t.ny, t.jitter, gradBotColor)
                 t.view.colorMul = t.baseColor
             }
-            triLayer.cache = true
             return@addUpdater
         }
 
-        // Pulse running: render the wave live (uncached).
-        triLayer.cache = false
         for (t in tris) {
             val lp = pulseT - t.pulseDist / waveSpeed
             // The wave front carries the new gradient bottom colour: once it
@@ -391,6 +365,4 @@ fun resetBackgroundGradient() {
         t.baseColor = baseColorAt(t.ny, t.jitter, gradBotColor)
         t.view.colorMul = t.baseColor
     }
-    // The updater owns the cache; have it re-bake on the next frame.
-    pendingRecache = true
 }
