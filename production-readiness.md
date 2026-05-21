@@ -17,6 +17,8 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 | App version | 1.0.2 (versionCode 4) — bump `androidVersionCode` in `build.gradle.kts` for every Play upload |
 | Android AdMob app ID | `ca-app-pub-7742910323184344~4789526938` |
 | Android interstitial ad unit | `ca-app-pub-7742910323184344/7551421648` |
+| iOS AdMob app ID | `ca-app-pub-7742910323184344~4136123498` |
+| iOS interstitial ad unit | `ca-app-pub-7742910323184344/7698900922` |
 | Upload keystore | `triplo-upload-key.jks` — gitignored; file + password stored in 1Password; alias `triplo-upload` |
 
 ## Toolchain
@@ -75,8 +77,7 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
   collision with `kotlin.Number` at framework-link time.
 - ✅ `native/GoogleMobileAdsBridge.def` now passes `-undefined dynamic_lookup` so the Kotlin/Native
   framework defers `TriploAds` symbol resolution to the app-binary link step.
-- ❌ Add the iOS app in AdMob; wire its real app ID + interstitial ad unit ID (currently using
-  Google's *sample* IDs).
+- ✅ iOS app created in AdMob; real app ID + interstitial ad unit ID wired in.
 - ❌ Privacy & messaging UMP consent messages configured in the AdMob console (GDPR + US states).
 - ❌ Verify on a physical iPhone (USB) — simulator only so far.
 - ❌ iOS signing / provisioning via the Apple Developer account.

@@ -64,8 +64,8 @@ dependencies {
 // Building any iOS target requires a full Xcode install.
 // =====================================================================================
 
-// Google's public *sample* AdMob app id for iOS - serves test ads only. Replace for production.
-val iosAdMobAppId = "ca-app-pub-3940256099942544~1458002511"
+// Production AdMob app id for the iOS app (AllMeat Games publisher).
+val iosAdMobAppId = "ca-app-pub-7742910323184344~4136123498"
 val googleMobileAdsSpmUrl = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git"
 val googleMobileAdsSpmVersion = "13.4.0"
 val googleUmpSpmUrl = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git"
