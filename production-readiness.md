@@ -79,22 +79,22 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
   framework defers `TriploAds` symbol resolution to the app-binary link step.
 - ✅ iOS app created in AdMob; real app ID + interstitial ad unit ID wired in.
 - ❌ Privacy & messaging UMP consent messages configured in the AdMob console (GDPR + US states).
-- ❌ Verify on a physical iPhone (USB) — simulator only so far.
-- ❌ iOS signing / provisioning via the Apple Developer account.
+- ✅ Verified on a physical iPhone (Amy's, via free Personal Team provisioning).
+- ❌ iOS signing / provisioning via a paid Apple Developer account (for App Store distribution).
 
 ### Store listings — ❌ not started
-- ✅ Privacy policy drafted — served at `triplo.club/privacy` by the Worker once deployed.
-- ❌ Screenshots (Android phone; iOS 6.7").
+- ✅ Privacy policy drafted and live at `triplo.club/privacy` (Cloudflare Worker deployed).
+- ✅ iOS 6.9" screenshots captured from the iPhone 17 Pro Max simulator.
+- ❌ Android phone screenshots.
 - ❌ 512×512 icon, 1024×500 feature graphic.
 - ❌ Short + full store description.
 - ❌ Content rating questionnaire (Google) / age rating (Apple).
 - ❌ Data safety form (Google) / App Privacy labels (Apple) — declare AdMob + advertising ID.
 - ❌ `app-ads.txt` on `allmeatgames.com` (optional, improves ad fill).
 
-### triplo.club redirect — ✅ code written, ⏳ deploy
-- ✅ Cloudflare Worker written (`cloudflare-worker/`): platform-detecting redirect
+### triplo.club redirect — ✅ deployed
+- ✅ Cloudflare Worker (`cloudflare-worker/`): platform-detecting redirect
   (iOS → App Store, Android → Play Store, desktop → landing page) + `/privacy` page.
-- ❌ Deploy it: `npx wrangler deploy` from `cloudflare-worker/` (needs Cloudflare login).
 - ❌ Fill in `APP_STORE_URL` in `worker.js` once the iOS app's App Store ID exists.
 
 ### Launch — ❌ blocked on the above
