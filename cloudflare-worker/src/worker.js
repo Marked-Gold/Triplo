@@ -5,6 +5,7 @@
  *   Android devices -> Google Play listing
  *   anything else   -> a small landing page with both store links
  *   /privacy        -> the privacy policy
+ *   /app-ads.txt    -> AdMob publisher declaration (IAB app-ads.txt spec)
  *
  * Deploy with `wrangler deploy` (see README.md).
  */
@@ -21,6 +22,13 @@ const APP_STORE_URL = "https://apps.apple.com/app/id<APP_STORE_ID>";
 const CONTACT_EMAIL = "mark@allmeatgames.com";
 const PRIVACY_UPDATED = "May 17, 2026";
 
+// IAB app-ads.txt declaration. The crawler hits /app-ads.txt on the developer URL listed in
+// each store listing — for Triplo that's triplo.club. One line per ad network the app
+// monetizes through; `pub-7742910323184344` is the AllMeat Games AdMob publisher id with
+// Google's invariant TAG-ID.
+const APP_ADS_TXT =
+  "google.com, pub-7742910323184344, DIRECT, f08c47fec0942fa0\n";
+
 const appStoreReady = () => !APP_STORE_URL.includes("<APP_STORE_ID>");
 
 export default {
@@ -29,6 +37,9 @@ export default {
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
     if (path === "/privacy") return htmlResponse(privacyPage());
+    // app-ads.txt must be reachable to every crawler regardless of UA, so it is handled
+    // before the platform-based store-redirect logic below.
+    if (path === "/app-ads.txt") return textResponse(APP_ADS_TXT);
 
     const ua = request.headers.get("User-Agent") || "";
     const platform = /iPhone|iPad|iPod/i.test(ua)
@@ -51,6 +62,15 @@ function htmlResponse(body) {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "public, max-age=300",
+    },
+  });
+}
+
+function textResponse(body) {
+  return new Response(body, {
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "public, max-age=3600",
     },
   });
 }
