@@ -57,12 +57,12 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 ## Work remaining
 
 ### Accounts — ⏳ / ❌
-- ⏳ Google Play Console — government photo ID verification pending (~days).
+- ✅ Google Play Console — government photo ID verification cleared.
 - ⏳ AdMob account — under review.
-- ❌ AdMob: complete the **Payments** section (address + tax info).
-- ❌ AdMob: create **Privacy & messaging** consent messages (GDPR + US states) — until then
-  the UMP `requestConsentInfoUpdate` call logs a "Publisher misconfiguration" warning.
-- ❌ Apple Developer Program — enroll as Individual ($99/yr).
+- ⏸ AdMob: **Payments** section deferred — full bank/payout setup is gated by the $100 earnings threshold, which the app can only cross after shipping.
+- ✅ AdMob: GDPR (IAB TCF) + US-states **Privacy & messaging** consent messages published; linked to both Android and iOS apps.
+- ✅ In-app **AD PERMISSIONS** revocation entry point added (pause menu → Settings) so users can re-open the UMP consent form anytime; required for GDPR compliance + store review.
+- ⏳ Apple Developer Program — payment submitted; "Enrollment Pending" identity-verification step.
 
 ### iOS — ⏳ in progress
 - ✅ Xcode 26.5 installed; iOS 26.5 simulator runtime installed; license accepted.
@@ -82,32 +82,37 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 - ✅ Verified on a physical iPhone (Amy's, via free Personal Team provisioning).
 - ❌ iOS signing / provisioning via a paid Apple Developer account (for App Store distribution).
 
-### Store listings — ❌ not started
+### Store listings — ⏳ partial
 - ✅ Privacy policy drafted and live at `triplo.club/privacy` (Cloudflare Worker deployed).
 - ✅ iOS 6.9" screenshots captured from the iPhone 17 Pro Max simulator.
-- ❌ Android phone screenshots.
-- ❌ 512×512 icon, 1024×500 feature graphic.
-- ❌ Short + full store description.
-- ❌ Content rating questionnaire (Google) / age rating (Apple).
-- ❌ Data safety form (Google) / App Privacy labels (Apple) — declare AdMob + advertising ID.
-- ❌ `app-ads.txt` on `allmeatgames.com` (optional, improves ad fill).
+- ✅ Android phone screenshots (`screenshot1.png`, `screenshot2.png` — 912×2048).
+- ✅ 512×512 icon (`icon-512.png`) + 1024×500 feature graphic (`feature-graphic.png`).
+- ✅ Short + full Android store description drafted.
+- ✅ Content rating questionnaire (Google) submitted. ❌ Age rating (Apple) — needs App Store Connect.
+- ✅ Data safety form (Google) submitted. ❌ App Privacy labels (Apple) — needs App Store Connect.
+- ✅ `app-ads.txt` served from `triplo.club/app-ads.txt` (Cloudflare Worker). AdMob will crawl
+  this only when the developer-website URL in each store listing points to `triplo.club`.
 
 ### triplo.club redirect — ✅ deployed
 - ✅ Cloudflare Worker (`cloudflare-worker/`): platform-detecting redirect
   (iOS → App Store, Android → Play Store, desktop → landing page) + `/privacy` page.
-- ❌ Fill in `APP_STORE_URL` in `worker.js` once the iOS app's App Store ID exists.
+- ❌ Fill in `APP_STORE_URL` in `cloudflare-worker/src/worker.js` once the iOS App Store ID exists.
 
-### Launch — ❌ blocked on the above
-- ❌ Google **closed test**: 12+ testers opted in for 14 continuous days — required for new
-  Individual accounts before production access is granted. This is the critical-path long pole.
-- ❌ Google production submission & rollout.
-- ❌ Apple TestFlight + App Store submission.
+### Launch — ⏳ closed test running
+- ⏳ Google **closed test**: signed AAB uploaded to a closed-testing track with 12+ testers opted in;
+  day 1 in progress, 14-day continuous-active clock expected to complete **2026-06-07**.
+- ❌ Google production submission & rollout (unblocks 2026-06-07).
+- ❌ Apple TestFlight + App Store submission (still gated on Apple Developer enrollment).
 
 ---
 
 ## Notes
 
-- The 14-day Google closed test is the long pole; it cannot start until the Play account is
-  verified and a signed AAB is uploaded to a closed-testing track.
-- Rebuild the final release AAB once iOS AdMob and any consent changes are in, so a single
-  build serves both the closed test and production.
+- The 14-day Google closed test is in progress; finishes **2026-06-07** assuming 12+ testers
+  stay active for the full 14 continuous days. Drops below 12 likely reset the clock — keep
+  the tester roster well above 12 to be safe.
+- Apple Developer enrollment is the iOS critical path; everything iOS-Store-Connect-related
+  (signing, App Privacy labels, age rating, TestFlight, submission, Cloudflare worker
+  `APP_STORE_URL`) unblocks the moment verification lands.
+- Useful parallel work in the 2026-05-22 → 2026-06-07 window: draft iOS listing copy and
+  publish `app-ads.txt` so we can paste/wire them in immediately once accounts unlock.
