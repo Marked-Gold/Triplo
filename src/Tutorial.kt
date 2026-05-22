@@ -33,7 +33,7 @@ var tutorialActive = false
 // selection (used by the bomb/rocket steps, whose power-up flows do not go through this gate).
 var tutorialAllowedPositions: Set<Position>? = null
 
-private enum class TStep { WELCOME, MERGE, LINE, SQUARE, BOMB, ROCKET, GAMEON }
+private enum class TStep { WELCOME, MERGE, LINE, SQUARE, BOMB, ROCKET, UNDO, GAMEON }
 
 private val tStepOrder = TStep.values()
 private val mergeSteps = setOf(TStep.MERGE, TStep.LINE, TStep.SQUARE)
@@ -65,7 +65,8 @@ private val footerColor = Colors["#FFD23F"]
 
 /** Whether the board accepts touches at all in the current tutorial step. */
 fun tutorialBoardEnabled(): Boolean =
-    !tutorialActive || (currentTStep != TStep.WELCOME && currentTStep != TStep.GAMEON)
+    !tutorialActive ||
+        (currentTStep != TStep.WELCOME && currentTStep != TStep.UNDO && currentTStep != TStep.GAMEON)
 
 /** Whether tapping the bomb power-up icon is allowed right now. */
 fun tutorialAllowsBombTap(): Boolean = !tutorialActive || currentTStep == TStep.BOMB
@@ -174,6 +175,10 @@ private fun Stage.showCurrentTutorialStep() {
                 rocketContainer,
                 highlightActive = { !rocketSelection.selected },
             )
+        }
+        TStep.UNDO -> {
+            tutorialAllowedPositions = null
+            showPageStep(undoPage(), "TAP TO CONTINUE")
         }
         TStep.GAMEON -> showGameOnStep()
     }
@@ -521,6 +526,16 @@ private class InfoPage(
 private fun welcomePage() =
     InfoPage("WELCOME TO TRIPLO", listOf("Merge blocks to climb powers of 3"))
 
+private fun undoPage() =
+    InfoPage(
+        "UNDO",
+        listOf(
+            "Made a mistake? Open the pause menu and tap " +
+                "UNDO to take back your last move.",
+            "You get ${Undo.maxUndosPerRound} undos each round.",
+        ),
+    )
+
 private fun infoPages(): List<InfoPage> =
     listOf(
         InfoPage(
@@ -572,6 +587,7 @@ private fun infoPages(): List<InfoPage> =
                     "positions.",
             ),
         ),
+        undoPage(),
         InfoPage(
             "STAYING ALIVE",
             listOf(

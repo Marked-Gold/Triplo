@@ -8,7 +8,9 @@ import korlibs.korge.view.Stage
  * the current board views and rebuilds from the most recent snapshot.
  *
  * The history is capped at [maxHistory] = 1 so the player can only undo the single most recent
- * move. After they undo, the button is disabled (no history) until they make another move.
+ * move. On top of that, the player gets only [maxUndosPerRound] undos per round — after that the
+ * button is disabled until [clear] runs (i.e. the next restart). Between those two limits, the
+ * button is disabled whenever there is nothing to undo (start of round, or right after an undo).
  *
  * Selection state, hover state, and the background gradient pulse are not captured: blocks come
  * back unselected (the default for `Block(id, number)`) and the background colour stays where it
@@ -16,6 +18,9 @@ import korlibs.korge.view.Stage
  */
 object Undo {
     private const val maxHistory = 1
+
+    /** Hard cap on undos per round. Exposed so the tutorial copy can reference the same number. */
+    const val maxUndosPerRound = 2
 
     /** Minimal per-block state — `id` + `number` is everything a fresh [Block] needs. */
     private data class BlockSnap(val id: Int, val number: Rank)
@@ -28,10 +33,17 @@ object Undo {
     )
 
     private val history = ArrayDeque<Snapshot>()
+    private var usedThisRound = 0
 
-    fun canUndo(): Boolean = history.isNotEmpty()
+    /** Undos still available in the current round. */
+    fun remaining(): Int = maxUndosPerRound - usedThisRound
 
-    fun clear() = history.clear()
+    fun canUndo(): Boolean = history.isNotEmpty() && remaining() > 0
+
+    fun clear() {
+        history.clear()
+        usedThisRound = 0
+    }
 
     /**
      * Snapshot the current state. Called from the merge / bomb / rocket entry points right before
@@ -57,7 +69,9 @@ object Undo {
      * as the original board.
      */
     fun restoreLatest(stage: Stage): Boolean {
+        if (remaining() <= 0) return false
         val snap = history.removeLastOrNull() ?: return false
+        usedThisRound++
 
         blocksMap.values.forEach { it.removeFromParent() }
         blocksMap.clear()

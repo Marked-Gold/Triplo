@@ -543,7 +543,7 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 centerXOn(restartBackground)
                 alignTopToTopOf(restartBackground, buttonTopOffset(0))
             }
-            val label = text("UNDO", labelSize, pauseScreenTextColor, font) {
+            val label = text("UNDO (${Undo.remaining()} LEFT)", labelSize, pauseScreenTextColor, font) {
                 if (canUndo) {
                     onOver { color = pauseScreenTextHoverColor }
                     onOut { color = pauseScreenTextColor }
