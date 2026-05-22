@@ -150,6 +150,28 @@
     [self finishWithCompletion];
 }
 
+#pragma mark - Privacy options form
+
++ (BOOL)privacyOptionsRequired {
+    return UMPConsentInformation.sharedInstance.privacyOptionsRequirementStatus ==
+        UMPPrivacyOptionsRequirementStatusRequired;
+}
+
++ (void)presentPrivacyOptions:(void (^)(void))completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *root = [TriploAds rootViewController];
+        if (root == nil) {
+            if (completion) completion();
+            return;
+        }
+        [UMPConsentForm presentPrivacyOptionsFormFromViewController:root
+                                                  completionHandler:^(NSError *_Nullable error) {
+            if (error != nil) NSLog(@"[TriploAds] privacy options form error: %@", error);
+            if (completion) completion();
+        }];
+    });
+}
+
 #pragma mark - Helpers
 
 + (nullable UIViewController *)rootViewController {

@@ -49,3 +49,17 @@ object Ads {
  * Real implementation on Android; no-op on every other platform.
  */
 expect fun Views.installPlatformAds()
+
+/**
+ * True when GDPR / US-state privacy laws require us to expose a "manage consent" affordance
+ * somewhere in the app. False when the user is outside those jurisdictions; the pause-menu
+ * "AD PERMISSIONS" button is hidden in that case to avoid showing a no-op control.
+ */
+expect fun adsPrivacyOptionsRequired(): Boolean
+
+/**
+ * Shows the UMP privacy-options form so users can revoke or change their previous ad-consent
+ * choices. The callback fires when the form is dismissed (or immediately on platforms without
+ * an ad SDK wired up).
+ */
+expect fun adsPresentPrivacyOptions(onClose: () -> Unit)

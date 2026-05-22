@@ -200,6 +200,60 @@ fun Container.speakerIcon(
         }
     }
 
+/** Settings icon — three horizontal sliders with offset round handles, the universal
+ * "preferences / tune-able controls" glyph. */
+fun Container.settingsIcon(
+    s: Double,
+    color: RGBA = iconInk,
+): Container =
+    iconBox(s) {
+        graphics {
+            val lineWidth = s * 0.085
+            val knobR = s * 0.10
+            val laneStart = s * 0.18
+            val laneEnd = s * 0.82
+            // Three horizontal lanes evenly spaced top-to-bottom.
+            val lanes = listOf(s * 0.28, s * 0.50, s * 0.72)
+            // Knob X positions vary per lane so the icon reads as adjustable sliders.
+            val knobs = listOf(s * 0.62, s * 0.34, s * 0.70)
+            stroke(color, lineWidth = lineWidth, lineCap = LineCap.ROUND) {
+                for (laneY in lanes) {
+                    moveTo(laneStart, laneY)
+                    lineTo(laneEnd, laneY)
+                }
+            }
+            fill(color) {
+                for (i in lanes.indices) {
+                    circle(Point(knobs[i], lanes[i]), knobR)
+                }
+            }
+        }
+    }
+
+/** Shield icon — a flat-topped shield with a checkmark inside. Used to label the AD PERMISSIONS
+ * row (the UMP privacy-options form) in the settings sub-menu. */
+fun Container.shieldIcon(
+    s: Double,
+    color: RGBA = iconInk,
+): Container =
+    iconBox(s) {
+        graphics {
+            stroke(color, lineWidth = s * 0.10, lineCap = LineCap.ROUND) {
+                // Shield outline: flat top, straight sides, rounded point at the bottom.
+                moveTo(s * 0.22, s * 0.22)
+                lineTo(s * 0.78, s * 0.22)
+                lineTo(s * 0.78, s * 0.55)
+                quadTo(s * 0.78, s * 0.78, s * 0.50, s * 0.86)
+                quadTo(s * 0.22, s * 0.78, s * 0.22, s * 0.55)
+                close()
+                // Checkmark.
+                moveTo(s * 0.36, s * 0.50)
+                lineTo(s * 0.46, s * 0.61)
+                lineTo(s * 0.66, s * 0.40)
+            }
+        }
+    }
+
 /** Share icon — three connected nodes. */
 fun Container.shareIcon(
     s: Double,

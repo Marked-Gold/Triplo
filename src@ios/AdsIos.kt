@@ -21,6 +21,12 @@ actual fun Views.installPlatformAds() {
     }
 }
 
+actual fun adsPrivacyOptionsRequired(): Boolean = TriploAds.privacyOptionsRequired()
+
+actual fun adsPresentPrivacyOptions(onClose: () -> Unit) {
+    TriploAds.presentPrivacyOptions { onClose() }
+}
+
 private class IosInterstitialAds : InterstitialAdProvider {
     override fun preload() {
         if (TriploAds.isInterstitialReady()) return

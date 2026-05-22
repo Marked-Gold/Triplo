@@ -36,6 +36,19 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)showInterstitial:(void (^)(void))completion;
 
+/**
+ * Returns YES when GDPR / US-state privacy laws require us to surface a "manage consent"
+ * affordance somewhere in the app (per Google's UMP guidance).
+ */
++ (BOOL)privacyOptionsRequired;
+
+/**
+ * Presents the UMP privacy-options form so the user can revoke or change their previous consent
+ * choice. The completion block fires when the form is dismissed (or immediately if it could not
+ * be shown).
+ */
++ (void)presentPrivacyOptions:(void (^)(void))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

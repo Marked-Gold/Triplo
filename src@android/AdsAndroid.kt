@@ -7,6 +7,7 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 import korlibs.korge.view.Views
@@ -29,8 +30,13 @@ private val TEST_DEVICE_IDS = listOf(
 
 private var adsStarted = false
 
+// Cached so adsPresentPrivacyOptions / adsPrivacyOptionsRequired can reach the same Activity the
+// install step was bound to, without threading a Views handle through every call site.
+private var cachedActivity: Activity? = null
+
 actual fun Views.installPlatformAds() {
     val activity = gameWindow.gameWindowAndroidContext as? Activity ?: return
+    cachedActivity = activity
     // Gather user consent via the User Messaging Platform before requesting ads. This is required
     // for users in the EEA/UK (GDPR) and for US state privacy laws; the consent messages themselves
     // are configured in the AdMob console. requestConsentInfoUpdate refreshes the consent state,
@@ -64,6 +70,24 @@ private fun startAds(activity: Activity) {
     val provider = AndroidInterstitialAds(activity)
     Ads.provider = provider
     provider.preload()
+}
+
+actual fun adsPrivacyOptionsRequired(): Boolean {
+    val activity = cachedActivity ?: return false
+    val info = UserMessagingPlatform.getConsentInformation(activity)
+    return info.privacyOptionsRequirementStatus ==
+        ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
+}
+
+actual fun adsPresentPrivacyOptions(onClose: () -> Unit) {
+    val activity = cachedActivity
+    if (activity == null) { onClose(); return }
+    activity.runOnUiThread {
+        UserMessagingPlatform.showPrivacyOptionsForm(activity) { error ->
+            if (error != null) Napier.w("Privacy options form error: ${error.message}")
+            onClose()
+        }
+    }
 }
 
 private class AndroidInterstitialAds(private val activity: Activity) : InterstitialAdProvider {

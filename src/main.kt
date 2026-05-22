@@ -71,6 +71,10 @@ fun resetIdleTimer() {
 
 var showingRestart: Boolean = false
 var restartPopupContainer: Container = Container()
+// The settings sub-page floats on top of the pause menu. Holding a reference lets the pause
+// button toggle it off again if it is showing.
+var settingsPopupContainer: Container = Container()
+var showingSettings: Boolean = false
 
 /** Storage key for the haptics on/off preference. */
 const val hapticsEnabledKey = "hapticsEnabled"
@@ -449,6 +453,9 @@ fun Stage.unselectAllPowerUps() {
 
 fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
     container {
+        // Capture the outer container so nested button blocks (which shadow `this@container` with
+        // their own inner container scope) can still address the pause popup itself.
+        val pausePopup = this
         showingRestart = true
         Napier.d("Showing Restart Container...")
 
@@ -525,15 +532,17 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
             label.centerYOn(within)
         }
 
-        // Pause shows five rows (UNDO + RESTART / GUIDE / SHARE / HAPTICS+SFX) using tighter
-        // heights and gaps. Game over hides UNDO (the only state to undo to is the one that just
-        // ended the game) and reverts to the original four-row spacing so it looks unchanged.
+        // Pause shows four rows (UNDO / RESTART / SHARE / SETTINGS); game over hides UNDO (the
+        // only state to undo to is the one that just ended the game) and so shows three. Buttons
+        // are sized identically in both contexts; the whole stack is centered vertically in the
+        // popup background, so the 3-row game-over screen still looks balanced.
         val buttonWidth = fieldWidth * 2.0 / 3
-        val buttonHeight = if (isGameOver) fieldHeight * 0.15 else fieldHeight * 0.135
-        val buttonGap = if (isGameOver) fieldHeight * 0.035 else fieldHeight * 0.025
-        val firstRowTop = if (isGameOver) fieldHeight * 0.185 else fieldHeight * 0.165
+        val buttonHeight = fieldHeight * 0.15
+        val buttonGap = fieldHeight * 0.035
+        val labelSize = 27.0
+        val rowCount = if (isGameOver) 3 else 4
+        val firstRowTop = (fieldHeight - (rowCount * buttonHeight + (rowCount - 1) * buttonGap)) / 2.0
         fun buttonTopOffset(index: Int) = firstRowTop + index * (buttonHeight + buttonGap)
-        val labelSize = if (isGameOver) 27.0 else 25.0
         // Without UNDO at row 0, the remaining rows shift up by one on game over.
         val rowOffset = if (isGameOver) 1 else 0
 
@@ -598,33 +607,11 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                     clearPopup()
                 }
             }
-        val howToContainer =
-            container {
-                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
-                    centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, buttonTopOffset(2 - rowOffset))
-                }
-                val label = text("GUIDE", labelSize, pauseScreenTextColor, font) {
-                    onOver { color = pauseScreenTextHoverColor }
-                    onOut { color = pauseScreenTextColor }
-                    onDown { color = pauseScreenTextDownColor }
-                    onUp { color = pauseScreenTextDownColor }
-                }
-                val icon = helpIcon(fieldWidth * 0.13, pauseScreenTextColor)
-                layoutButtonContent(label, icon, textContainer)
-                onClick {
-                    Napier.d("How To Play Button Clicked")
-                    // Hide the pause popup while the guide is open so its buttons (and the
-                    // board) behind the guide cannot be clicked through; restore it on close.
-                    restartPopupContainer.visible = false
-                    stage?.showHowToPlay { restartPopupContainer.visible = true }
-                }
-            }
         val shareContainer =
             container {
                 val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    alignTopToTopOf(restartBackground, buttonTopOffset(3 - rowOffset))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(2 - rowOffset))
                 }
                 val label = text("SHARE", labelSize, pauseScreenTextColor, font) {
                     onOver { color = pauseScreenTextHoverColor }
@@ -650,64 +637,28 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 onClick { shareAndConfirm() }
             }
 
-        // The bottom row holds two icon-only toggles side-by-side: HAPTICS on the left, SOUND on
-        // the right. The pair shares the same horizontal footprint as the four labelled buttons
-        // above it; the icon dims to 0.3 alpha when its feature is off, so each button's strength
-        // shows the current state at a glance (no separate "muted" art needed).
-        val slotGap = buttonWidth * 0.08
-        val slotWidth = (buttonWidth - slotGap) / 2.0
-        // After centerXOn, shift each half outward by this much so the two rects sit symmetrically
-        // around the row's centreline with `slotGap` of space between them.
-        val slotShift = (slotWidth + slotGap) / 2.0
-        val toggleIconSize = fieldWidth * 0.15
-
-        val hapticsContainer =
+        // SETTINGS opens the secondary page that holds GUIDE, AD PERMISSIONS and the
+        // HAPTICS/SOUND toggles. The pause popup itself is left attached but hidden behind
+        // settings, so closing settings restores it without rebuilding any state.
+        val settingsContainer =
             container {
-                val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
                     centerXOn(restartBackground)
-                    x -= slotShift
-                    alignTopToTopOf(restartBackground, buttonTopOffset(4 - rowOffset))
+                    alignTopToTopOf(restartBackground, buttonTopOffset(3 - rowOffset))
                 }
-                val icon = hapticsIcon(toggleIconSize, pauseScreenTextColor)
-                icon.centerOn(textContainer)
-
-                fun showEnabledState() {
-                    icon.alpha = if (Haptics.enabled) 1.0 else 0.3
+                val label = text("SETTINGS", labelSize, pauseScreenTextColor, font) {
+                    onOver { color = pauseScreenTextHoverColor }
+                    onOut { color = pauseScreenTextColor }
+                    onDown { color = pauseScreenTextDownColor }
+                    onUp { color = pauseScreenTextDownColor }
                 }
-                showEnabledState()
-
+                val icon = settingsIcon(fieldWidth * 0.13, pauseScreenTextColor)
+                layoutButtonContent(label, icon, textContainer)
                 onClick {
-                    Haptics.enabled = !Haptics.enabled
-                    stage?.views?.storage?.set(hapticsEnabledKey, Haptics.enabled.toString())
-                    showEnabledState()
-                    // A tick confirms the switch the moment haptics are turned back on.
-                    if (Haptics.enabled) Haptics.tap()
-                    Napier.d("Haptics toggled ${if (Haptics.enabled) "on" else "off"}")
-                }
-            }
-
-        val sfxContainer =
-            container {
-                val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
-                    centerXOn(restartBackground)
-                    x += slotShift
-                    alignTopToTopOf(restartBackground, buttonTopOffset(4 - rowOffset))
-                }
-                val icon = speakerIcon(toggleIconSize, pauseScreenTextColor)
-                icon.centerOn(textContainer)
-
-                fun showEnabledState() {
-                    icon.alpha = if (Sfx.enabled) 1.0 else 0.3
-                }
-                showEnabledState()
-
-                onClick {
-                    Sfx.enabled = !Sfx.enabled
-                    stage?.views?.storage?.set(sfxEnabledKey, Sfx.enabled.toString())
-                    showEnabledState()
-                    // A short pop confirms the switch the moment SFX is turned back on.
-                    if (Sfx.enabled) Sfx.merge(Rank.ONE)
-                    Napier.d("Sfx toggled ${if (Sfx.enabled) "on" else "off"}")
+                    Napier.d("Settings Button Clicked")
+                    val s = stage ?: return@onClick
+                    pausePopup.visible = false
+                    settingsPopupContainer = s.showSettings { pausePopup.visible = true }
                 }
             }
 
@@ -733,8 +684,166 @@ fun Container.showRestart(isGameOver: Boolean = false, onRestart: () -> Unit) =
                 restartBackground,
                 headingGlyphs,
                 headingText,
-                listOf(bgRestartContainer, howToContainer, shareContainer, hapticsContainer, sfxContainer),
+                listOf(bgRestartContainer, shareContainer, settingsContainer),
             )
+        }
+    }
+
+/**
+ * Settings sub-page reached from the SETTINGS button in the pause menu. Holds GUIDE,
+ * AD PERMISSIONS (only when GDPR / US-state privacy laws require us to expose a "manage consent"
+ * affordance) and the HAPTICS / SOUND icon toggles. Mirrors the pause menu's full-board backdrop
+ * so taps outside the buttons return to the pause menu beneath.
+ */
+fun Container.showSettings(onClose: () -> Unit) =
+    container {
+        // Captured for the same reason as showRestart's pausePopup: nested button blocks shadow
+        // `this@container` so we hold an outer ref to toggle visibility (e.g. when GUIDE opens).
+        val settingsPopup = this
+        showingSettings = true
+        Napier.d("Showing Settings Container...")
+
+        val privacyOptionsAvailable = adsPrivacyOptionsRequired()
+
+        fun dismiss() {
+            showingSettings = false
+            this@container.removeFromParent()
+            onClose()
+        }
+
+        // Full-screen tap catcher behind the dialog: a tap anywhere outside the settings card
+        // dismisses settings and surfaces the pause menu underneath.
+        solidRect(4000.0, 4000.0, RGBA(0, 0, 0, 0)) {
+            centerXOn(gameField)
+            centerYOn(gameField)
+            onClick { dismiss() }
+        }
+
+        val settingsBackground =
+            roundRect(Size(fieldWidth, fieldHeight), RectCorners(5), fill = grayedGameFieldColor) {
+                centerXOn(gameField)
+                centerYOn(gameField)
+                onClick { dismiss() }
+            }
+
+        fun layoutButtonContent(label: View, icon: View, within: View) {
+            val pad = fieldWidth * 0.085
+            val gap = fieldWidth * 0.05
+            icon.x = within.x + pad
+            icon.centerYOn(within)
+            label.x = within.x + pad + icon.width + gap
+            label.centerYOn(within)
+        }
+
+        // Three rows max (GUIDE / AD PERMISSIONS / HAPTICS+SFX). AD PERMISSIONS is omitted when
+        // the user is outside any jurisdiction that requires a "manage consent" affordance — in
+        // that case the row collapses out and HAPTICS+SFX moves up into its slot.
+        val buttonWidth = fieldWidth * 2.0 / 3
+        val buttonHeight = fieldHeight * 0.15
+        val buttonGap = fieldHeight * 0.035
+        val labelSize = 27.0
+        val rowCount = if (privacyOptionsAvailable) 3 else 2
+        val firstRowTop = (fieldHeight - (rowCount * buttonHeight + (rowCount - 1) * buttonGap)) / 2.0
+        fun buttonTopOffset(index: Int) = firstRowTop + index * (buttonHeight + buttonGap)
+
+        // GUIDE — opens the tutorial overlay. Hides this settings popup while open so taps land
+        // on the guide's own buttons; restores it when the guide closes.
+        container {
+            val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                centerXOn(settingsBackground)
+                alignTopToTopOf(settingsBackground, buttonTopOffset(0))
+            }
+            val label = text("GUIDE", labelSize, pauseScreenTextColor, font) {
+                onOver { color = pauseScreenTextHoverColor }
+                onOut { color = pauseScreenTextColor }
+                onDown { color = pauseScreenTextDownColor }
+                onUp { color = pauseScreenTextDownColor }
+            }
+            val icon = helpIcon(fieldWidth * 0.13, pauseScreenTextColor)
+            layoutButtonContent(label, icon, textContainer)
+            onClick {
+                Napier.d("How To Play Button Clicked (from settings)")
+                settingsPopup.visible = false
+                stage?.showHowToPlay { settingsPopup.visible = true }
+            }
+        }
+
+        // AD PERMISSIONS — presents the UMP privacy-options form so the player can revoke or
+        // change their ad-consent choice. Required for GDPR compliance + App Store / Play Store
+        // review on apps that show personalized ads.
+        if (privacyOptionsAvailable) {
+            container {
+                val textContainer = roundRect(Size(buttonWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                    centerXOn(settingsBackground)
+                    alignTopToTopOf(settingsBackground, buttonTopOffset(1))
+                }
+                val label = text("AD PERMISSIONS", labelSize, pauseScreenTextColor, font) {
+                    onOver { color = pauseScreenTextHoverColor }
+                    onOut { color = pauseScreenTextColor }
+                    onDown { color = pauseScreenTextDownColor }
+                    onUp { color = pauseScreenTextDownColor }
+                }
+                val icon = shieldIcon(fieldWidth * 0.13, pauseScreenTextColor)
+                layoutButtonContent(label, icon, textContainer)
+                onClick {
+                    Napier.d("Ad Permissions Button Clicked")
+                    adsPresentPrivacyOptions { /* form-modal returns control on its own */ }
+                }
+            }
+        }
+
+        // Bottom row holds the icon-only HAPTICS / SOUND pair: same horizontal footprint as the
+        // labelled rows above, split into two square slots.
+        val slotGap = buttonWidth * 0.08
+        val slotWidth = (buttonWidth - slotGap) / 2.0
+        val slotShift = (slotWidth + slotGap) / 2.0
+        val toggleIconSize = fieldWidth * 0.15
+        val toggleRowIndex = rowCount - 1
+
+        container {
+            val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                centerXOn(settingsBackground)
+                x -= slotShift
+                alignTopToTopOf(settingsBackground, buttonTopOffset(toggleRowIndex))
+            }
+            val icon = hapticsIcon(toggleIconSize, pauseScreenTextColor)
+            icon.centerOn(textContainer)
+
+            fun showEnabledState() {
+                icon.alpha = if (Haptics.enabled) 1.0 else 0.3
+            }
+            showEnabledState()
+
+            onClick {
+                Haptics.enabled = !Haptics.enabled
+                stage?.views?.storage?.set(hapticsEnabledKey, Haptics.enabled.toString())
+                showEnabledState()
+                if (Haptics.enabled) Haptics.tap()
+                Napier.d("Haptics toggled ${if (Haptics.enabled) "on" else "off"}")
+            }
+        }
+
+        container {
+            val textContainer = roundRect(Size(slotWidth, buttonHeight), RectCorners(25), fill = pauseScreenBlockColor) {
+                centerXOn(settingsBackground)
+                x += slotShift
+                alignTopToTopOf(settingsBackground, buttonTopOffset(toggleRowIndex))
+            }
+            val icon = speakerIcon(toggleIconSize, pauseScreenTextColor)
+            icon.centerOn(textContainer)
+
+            fun showEnabledState() {
+                icon.alpha = if (Sfx.enabled) 1.0 else 0.3
+            }
+            showEnabledState()
+
+            onClick {
+                Sfx.enabled = !Sfx.enabled
+                stage?.views?.storage?.set(sfxEnabledKey, Sfx.enabled.toString())
+                showEnabledState()
+                if (Sfx.enabled) Sfx.merge(Rank.ONE)
+                Napier.d("Sfx toggled ${if (Sfx.enabled) "on" else "off"}")
+            }
         }
     }
 
