@@ -24,3 +24,5 @@ korge.keystore
 # Node / Cloudflare Worker tooling
 node_modules/
 .wrangler/
+# Claude Code scratch directory (scheduled-task locks, etc.)
+.claude/
