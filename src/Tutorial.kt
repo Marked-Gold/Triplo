@@ -549,6 +549,15 @@ private fun infoPages(): List<InfoPage> =
             diagram = { mergeDiagram() },
         ),
         InfoPage(
+            "MERGE RESULTS",
+            listOf(
+                "Bigger chains climb higher.",
+                "Lines and boxes follow special rules - shown " +
+                    "on the next pages.",
+            ),
+            diagram = { mergeResultsDiagram() },
+        ),
+        InfoPage(
             "LINES",
             listOf(
                 "Longer chains climb faster: a chain of 6+ jumps " +
@@ -687,6 +696,32 @@ private fun Container.mergeDiagram() {
     diagramArrow(x + 2.0, s / 2.0)
     x += 30.0
     miniBlock(ONE, s).xy(x, 0.0)
+}
+
+/** Three rows showing how chain size maps to the resulting tier (+1 / +2 / +3). */
+private fun Container.mergeResultsDiagram() {
+    val s = 30.0
+    val rowGap = 8.0
+    val labelW = 72.0
+    val arrowW = 28.0
+    val rows =
+        listOf(
+            "3-5" to ONE,
+            "6-17" to TWO,
+            "18+" to THREE,
+        )
+    var y = 0.0
+    for ((label, rank) in rows) {
+        miniBlock(ZERO, s).xy(0.0, y)
+        text(label, 17.0, cardBody, font) {
+            setTextBounds(Rectangle(0.0, 0.0, labelW, s))
+            alignment = TextAlignment.MIDDLE_CENTER
+            xy(s + 6.0, y)
+        }
+        diagramArrow(s + 6.0 + labelW, y + s / 2.0)
+        miniBlock(rank, s).xy(s + 6.0 + labelW + arrowW, y)
+        y += s + rowGap
+    }
 }
 
 /** A line of five tier-1 blocks merging up. */
