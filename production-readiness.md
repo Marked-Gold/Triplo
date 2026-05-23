@@ -19,6 +19,8 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 | Android interstitial ad unit | `ca-app-pub-7742910323184344/7551421648` |
 | iOS AdMob app ID | `ca-app-pub-7742910323184344~4136123498` |
 | iOS interstitial ad unit | `ca-app-pub-7742910323184344/7698900922` |
+| iOS App Store ID | `6772526976` (used in App Store URL: `apps.apple.com/app/id6772526976`) |
+| iOS Apple Developer Team ID | `784936QA8D` (paid Apple Developer Program, individual) |
 | Upload keystore | `triplo-upload-key.jks` — gitignored; file + password stored in 1Password; alias `triplo-upload` |
 
 ## Toolchain
@@ -62,7 +64,7 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 - ⏸ AdMob: **Payments** section deferred — full bank/payout setup is gated by the $100 earnings threshold, which the app can only cross after shipping.
 - ✅ AdMob: GDPR (IAB TCF) + US-states **Privacy & messaging** consent messages published; linked to both Android and iOS apps.
 - ✅ In-app **AD PERMISSIONS** revocation entry point added (pause menu → Settings) so users can re-open the UMP consent form anytime; required for GDPR compliance + store review.
-- ⏳ Apple Developer Program — payment submitted; "Enrollment Pending" identity-verification step.
+- ✅ Apple Developer Program — enrolled (individual, Team ID `784936QA8D`).
 
 ### iOS — ⏳ in progress
 - ✅ Xcode 26.5 installed; iOS 26.5 simulator runtime installed; license accepted.
@@ -80,7 +82,8 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 - ✅ iOS app created in AdMob; real app ID + interstitial ad unit ID wired in.
 - ❌ Privacy & messaging UMP consent messages configured in the AdMob console (GDPR + US states).
 - ✅ Verified on a physical iPhone (Amy's, via free Personal Team provisioning).
-- ❌ iOS signing / provisioning via a paid Apple Developer account (for App Store distribution).
+- ✅ iOS signing / provisioning under the paid AllMeat Games team (App Store distribution profile auto-managed by Xcode; `app-Arm64-Release` target pinned to `com.allmeatgames.triplo` via the patch task).
+- ✅ App bundle is iPhone-only (`TARGETED_DEVICE_FAMILY = 1`) — runs on iPad in iPhone compatibility mode, so no iPad screenshots / iPad multitasking review needed.
 
 ### Store listings — ⏳ partial
 - ✅ Privacy policy drafted and live at `triplo.club/privacy` (Cloudflare Worker deployed).
@@ -95,14 +98,15 @@ Legend: ✅ done · ⏳ in progress / waiting · ❌ not started
 
 ### triplo.club redirect — ✅ deployed
 - ✅ Cloudflare Worker (`cloudflare-worker/`): platform-detecting redirect
-  (iOS → App Store, Android → Play Store, desktop → landing page) + `/privacy` page.
-- ❌ Fill in `APP_STORE_URL` in `cloudflare-worker/src/worker.js` once the iOS App Store ID exists.
+  (iOS → App Store, Android → Play Store, desktop → landing page) + `/privacy` + `/age-rating` pages.
+- ✅ `APP_STORE_URL` wired to `apps.apple.com/app/id6772526976`. Needs `wrangler deploy` to push live.
 
-### Launch — ⏳ closed test running
+### Launch — ⏳ Apple in review, Google closed test running
 - ⏳ Google **closed test**: signed AAB uploaded to a closed-testing track with 12+ testers opted in;
   day 1 in progress, 14-day continuous-active clock expected to complete **2026-06-07**.
 - ❌ Google production submission & rollout (unblocks 2026-06-07).
-- ❌ Apple TestFlight + App Store submission (still gated on Apple Developer enrollment).
+- ⏳ Apple App Store: **submitted for review 2026-05-23** (build 3, version 1.0). Review decision
+  typically 24–48h. Release setting: confirm on the submission page (auto vs manual).
 
 ---
 

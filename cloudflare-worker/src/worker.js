@@ -5,6 +5,7 @@
  *   Android devices -> Google Play listing
  *   anything else   -> a small landing page with both store links
  *   /privacy        -> the privacy policy
+ *   /age-rating     -> content / age suitability breakdown (Apple App Store URL)
  *   /app-ads.txt    -> AdMob publisher declaration (IAB app-ads.txt spec)
  *
  * Deploy with `wrangler deploy` (see README.md).
@@ -16,11 +17,12 @@ const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.allmeatgames.triplo";
 
 // The App Store URL needs the numeric app ID assigned in App Store Connect.
-// TODO: replace <APP_STORE_ID> with the real id once the iOS app is created.
-const APP_STORE_URL = "https://apps.apple.com/app/id<APP_STORE_ID>";
+// `6772526976` is the AllMeat Games / Triplo app record (submitted for review 2026-05-23).
+const APP_STORE_URL = "https://apps.apple.com/app/id6772526976";
 
 const CONTACT_EMAIL = "mark@allmeatgames.com";
 const PRIVACY_UPDATED = "May 17, 2026";
+const AGE_RATING_UPDATED = "May 23, 2026";
 
 // IAB app-ads.txt declaration. The crawler hits /app-ads.txt on the developer URL listed in
 // each store listing — for Triplo that's triplo.club. One line per ad network the app
@@ -37,6 +39,7 @@ export default {
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
     if (path === "/privacy") return htmlResponse(privacyPage());
+    if (path === "/age-rating") return htmlResponse(ageRatingPage());
     // app-ads.txt must be reachable to every crawler regardless of UA, so it is handled
     // before the platform-based store-redirect logic below.
     if (path === "/app-ads.txt") return textResponse(APP_ADS_TXT);
@@ -129,7 +132,8 @@ function landingPage() {
         <a class="btn" href="${PLAY_STORE_URL}">Get it on Google Play</a>
         ${appStore}
       </div>
-      <footer><a href="/privacy">Privacy Policy</a> &middot; AllMeat Games</footer>
+      <footer><a href="/privacy">Privacy Policy</a> &middot;
+        <a href="/age-rating">Age Rating</a> &middot; AllMeat Games</footer>
     </main>`,
   );
 }
@@ -187,6 +191,63 @@ function privacyPage() {
 
       <h2>Contact</h2>
       <p>Questions about this policy can be sent to
+      <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+
+      <a class="back" href="/">&larr; Back to Triplo</a>
+    </article>`,
+  );
+}
+
+function ageRatingPage() {
+  return page(
+    "Triplo — Age Rating & Content",
+    `<article class="wrap doc">
+      <h1>Age Rating &amp; Content</h1>
+      <p class="meta">Triplo &middot; AllMeat Games &middot; Last updated: ${AGE_RATING_UPDATED}</p>
+
+      <p>Triplo is a calm, family-friendly merge puzzle game designed for a general audience.
+      This page describes what the app contains so parents, guardians, and players can make
+      an informed decision before downloading.</p>
+
+      <h2>What&rsquo;s in the game</h2>
+      <ul>
+        <li><strong>Gameplay:</strong> tap groups of three matching tiles on a 7&times;7 grid to
+        merge them into the next power of three.</li>
+        <li><strong>Power-ups:</strong> a cartoon bomb icon clears a small area of tiles; a
+        cartoon rocket icon clears a single row. They are abstract gameplay tools &mdash; no
+        characters are depicted, and there is no violence, injury, or conflict between people.</li>
+        <li><strong>Visuals:</strong> simple geometric vector art with a calm, slowly shifting
+        background.</li>
+        <li><strong>Audio:</strong> optional sound effects and haptic feedback only. No voice,
+        no music with lyrics.</li>
+      </ul>
+
+      <h2>What the game does <em>not</em> contain</h2>
+      <ul>
+        <li>No realistic violence, blood, or weapons used against people or creatures.</li>
+        <li>No profanity, crude humor, or mature themes.</li>
+        <li>No sexual content or nudity.</li>
+        <li>No depictions or references to alcohol, tobacco, or drug use.</li>
+        <li>No gambling, simulated gambling, or wagering of any kind.</li>
+        <li>No horror or fear themes.</li>
+        <li>No user-generated content, chat, messaging, or social networking features.</li>
+        <li>No accounts, sign-ins, or personal information collection.</li>
+        <li>No in-app purchases.</li>
+      </ul>
+
+      <h2>Advertising</h2>
+      <p>Triplo shows interstitial ads through Google AdMob between games. Ad content is served
+      by Google and filtered to the &ldquo;general audiences&rdquo; category. On iOS, the App
+      Tracking Transparency prompt is shown before any tracking takes place. See the
+      <a href="/privacy">Privacy Policy</a> for the full data-handling breakdown.</p>
+
+      <h2>Recommended age</h2>
+      <p>The mechanics are simple enough for young children to play, but the powers-of-three
+      arithmetic and the strategic use of limited power-ups are most rewarding for ages 7 and
+      up. Younger players can comfortably play with adult guidance.</p>
+
+      <h2>Questions</h2>
+      <p>Comments or concerns about the app&rsquo;s content can be sent to
       <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
 
       <a class="back" href="/">&larr; Back to Triplo</a>

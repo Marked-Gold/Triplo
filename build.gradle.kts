@@ -18,11 +18,11 @@ korge {
     // current-generation device so `xcrun simctl create` succeeds.
     preferredIphoneSimulatorVersion = 17
 
-    // Apple Personal Team ID used to sign the iOS app for free-provisioning device testing
-    // (no paid Apple Developer Program enrollment). When the paid account is set up, replace
-    // this with the production team. The corresponding development certificate is in the
-    // login keychain (Apple Development: amy_cotton@live.ca).
-    appleDevelopmentTeamId = "2RT6SSLPCC"
+    // Apple Developer Program team ID for AllMeat Games (individual enrollment under
+    // Mark Robertson Gaskin). Used as DEVELOPMENT_TEAM in the generated Xcode project for all
+    // iOS variants. The corresponding distribution certificate / profile is auto-managed by
+    // Xcode under this team and is what allows App Store Connect uploads.
+    appleDevelopmentTeamId = "784936QA8D"
 
     // Google Play requires targetSdk 35+ for new apps (and 36+ from Aug 2026), so target 36.
     // minSdk 23 is the floor for Google Mobile Ads SDK 24+.
@@ -124,6 +124,13 @@ fun patchIosInfoPlist(plist: File) {
             append("\t<string>").append(iosAdMobAppId).append("</string>\n")
             append("\t<key>NSUserTrackingUsageDescription</key>\n")
             append("\t<string>").append(iosTrackingUsageDescription).append("</string>\n")
+            // Opt out of iPad multitasking (Slide Over / Split View / Stage Manager). Without
+            // this, App Store Connect upload validation (error 90474) requires the bundle to
+            // declare all four orientations in UISupportedInterfaceOrientations, which would
+            // break the intentional portrait lock for a one-handed merge puzzle. The app still
+            // runs on iPad — it just opens fullscreen rather than in a resizable window.
+            append("\t<key>UIRequiresFullScreen</key>\n")
+            append("\t<true/>\n")
             append("\t<key>SKAdNetworkItems</key>\n")
             append("\t<array>\n")
             for (id in skAdNetworkIdentifiers) {
@@ -157,8 +164,16 @@ fun patchIosProjectYml(projectYml: File) {
     if (!projectYml.exists()) return
     val lines = projectYml.readText().lines()
     if (lines.any { it.contains("GoogleMobileAds") }) return
+    var currentTarget: String? = null
     val out = StringBuilder()
     for (line in lines) {
+        // Track which top-level target block we're inside so target-specific patches can be
+        // gated on the target name. Targets in KorGE's generated project.yml are indented by
+        // exactly two spaces under `targets:` and have names like `app-Arm64-Release`.
+        Regex("^  (app-[A-Za-z0-9_-]+):\\s*$").matchEntire(line)?.let {
+            currentTarget = it.groupValues[1]
+        }
+
         out.append(line).append('\n')
         when {
             // Top-level SwiftPM package declarations, right after the project name. Both packages
@@ -183,6 +198,28 @@ fun patchIosProjectYml(projectYml: File) {
                 val indent = line.substringBefore("- framework:")
                 out.append(indent).append("- package: GoogleMobileAds\n")
                 out.append(indent).append("- package: GoogleUserMessagingPlatform\n")
+            }
+            // xcodegen's `bundleIdPrefix` + target name would otherwise produce
+            // `com.allmeatgames.triplo.app-Arm64-Release`, which is not a registered App ID and
+            // App Store Connect will refuse to accept. Override the bundle ID on the device-Release
+            // target only — that's the one that gets archived and uploaded. The other variants
+            // (debug/simulator/x64) keep their auto-suffixed IDs, which is useful for local testing
+            // (multiple variants can be installed on the same device side-by-side).
+            currentTarget == "app-Arm64-Release" && line.trim().startsWith("DEVELOPMENT_TEAM:") -> {
+                val indent = line.substringBefore("DEVELOPMENT_TEAM:")
+                out.append(indent).append("PRODUCT_BUNDLE_IDENTIFIER: com.allmeatgames.triplo\n")
+            }
+            // Force the binary to iPhone-only (TARGETED_DEVICE_FAMILY = 1). KorGE's xcodegen
+            // template defaults to Universal (1,2) which makes App Store Connect demand 13"
+            // iPad screenshots and pull the app into iPad review scrutiny (Stage Manager,
+            // Split View, iPad-specific orientation handling). The game is designed for
+            // one-handed iPhone play; iPad users still get the app via iPhone compatibility
+            // mode. Applied at the project level (currentTarget is null before any target
+            // block has been entered, i.e. when processing the top-level `settings:` block),
+            // so all 6 variants inherit it.
+            currentTarget == null && line.trim().startsWith("DEVELOPMENT_TEAM:") -> {
+                val indent = line.substringBefore("DEVELOPMENT_TEAM:")
+                out.append(indent).append("TARGETED_DEVICE_FAMILY: \"1\"\n")
             }
         }
     }
