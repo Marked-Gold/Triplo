@@ -1,8 +1,7 @@
 # CLAUDE.md
 
-Project notes for working on **Triplo** (a KorGE 6.0 game; the git repo directory is still
-named `Trillium` from before the rename). See `README.md` for the
-full overview, build commands, and the AdMob ads setup.
+Project notes for working on **Triplo** (a KorGE 6.0 game). See `README.md` for
+the full overview, build commands, and the AdMob ads setup.
 
 ## Build essentials
 
