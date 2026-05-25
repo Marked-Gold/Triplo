@@ -38,9 +38,15 @@ enum class Direction {
 
 fun getCardinalDirections() = arrayOf(Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
 
+// Debug toggle: when true, the board (and every replacement block) is filled with
+// Rank.ZERO ("1" tiles), to make it trivial to test square/line merge patterns.
+// Leave this `false` for normal play.
+const val debugAllOnes = false
+
 fun initBlock(): Block {
     val selectedId = nextBlockId
     nextBlockId++
+    if (debugAllOnes) return Block(id = selectedId, Rank.ZERO)
     val random = Random.nextDouble()
     return when {
         selectedId == random27ID -> Block(id = selectedId, Rank.THREE)
@@ -118,6 +124,7 @@ fun getAllEmptyPositions(): List<Position> {
 }
 
 fun getRandomRank(): Rank {
+    if (debugAllOnes) return Rank.ZERO
     val random = Random.nextDouble()
     return when {
         random < 0.05 -> Rank.THREE
@@ -201,23 +208,53 @@ fun determineMerge(positionList: MutableList<Position>): MutableMap<Position, Pa
 
             nextRank = blocksMap[positionList.first()]?.number?.next() ?: Rank.ZERO
 
-            val mergeRank =
-                when (min(uniqueX.size, uniqueY.size)) {
-                    in 0..2 -> nextRank
-                    3 -> nextRank.next()
-                    4 -> nextRank.next().next()
-                    5 -> nextRank.next().next().next()
-                    else -> nextRank.next().next().next().next()
-                }
-
-            if (uniqueX.size < uniqueY.size || (uniqueX.size == uniqueY.size && last.x == secondLast.x))
-                {
-                    for (i in uniqueY) {
-                        mergeMap[Position(last.x, i)] = Pair(mergeRank, uniqueX.filter { x -> x != last.x }.map { x -> Position(x, i) })
+            if (uniqueX.size == 3 && uniqueY.size == 3) {
+                // A full 3x3 collapses into a single block at the centre, four tiers
+                // above the selection (the rest of the rectangle family produces a line).
+                val centerPos = Position(uniqueX.sorted()[1], uniqueY.sorted()[1])
+                val sources = positionList.filter { it != centerPos }
+                mergeMap[centerPos] = Pair(nextRank.next().next().next(), sources)
+            } else if (uniqueX.size == 4 && uniqueY.size == 4) {
+                // A full 4x4 collapses into a 2x2 at the centre, each cell four tiers
+                // above the selection. Each source flies to its nearest centre cell.
+                val xs = uniqueX.sorted()
+                val ys = uniqueY.sorted()
+                val resultRank = nextRank.next().next().next()
+                val centerCells = listOf(
+                    Position(xs[1], ys[1]),
+                    Position(xs[2], ys[1]),
+                    Position(xs[1], ys[2]),
+                    Position(xs[2], ys[2]),
+                )
+                val buckets = centerCells.associateWith { mutableListOf<Position>() }
+                positionList
+                    .filter { it !in centerCells }
+                    .forEach { src ->
+                        val nearest = centerCells.minBy { abs(it.x - src.x) + abs(it.y - src.y) }
+                        buckets.getValue(nearest).add(src)
                     }
-                } else {
-                for (i in uniqueX) {
-                    mergeMap[Position(i, last.y)] = Pair(mergeRank, uniqueY.filter { y -> y != last.y }.map { y -> Position(i, y) })
+                centerCells.forEach { cell ->
+                    mergeMap[cell] = Pair(resultRank, buckets.getValue(cell))
+                }
+            } else {
+                val mergeRank =
+                    when (min(uniqueX.size, uniqueY.size)) {
+                        in 0..2 -> nextRank
+                        3 -> nextRank.next()
+                        4 -> nextRank.next().next()
+                        5 -> nextRank.next().next().next()
+                        else -> nextRank.next().next().next().next()
+                    }
+
+                if (uniqueX.size < uniqueY.size || (uniqueX.size == uniqueY.size && last.x == secondLast.x))
+                    {
+                        for (i in uniqueY) {
+                            mergeMap[Position(last.x, i)] = Pair(mergeRank, uniqueX.filter { x -> x != last.x }.map { x -> Position(x, i) })
+                        }
+                    } else {
+                    for (i in uniqueX) {
+                        mergeMap[Position(i, last.y)] = Pair(mergeRank, uniqueY.filter { y -> y != last.y }.map { y -> Position(i, y) })
+                    }
                 }
             }
         }
