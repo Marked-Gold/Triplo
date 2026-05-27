@@ -14,8 +14,11 @@ import korlibs.korge.view.Views
 import korlibs.render.gameWindowAndroidContext
 import kotlinx.coroutines.CompletableDeferred
 
-/** Production AdMob interstitial ad unit for the Android app. */
-private const val INTERSTITIAL_AD_UNIT = "ca-app-pub-7742910323184344/7551421648"
+/**
+ * Android AdMob interstitial ad unit. Chosen at build time by the `useTestAdIds` flag in
+ * build.gradle.kts and exposed through the generated AdConfig object.
+ */
+private val INTERSTITIAL_AD_UNIT = AdConfig.ANDROID_INTERSTITIAL_AD_UNIT
 
 /**
  * Devices that receive AdMob *test* ads instead of live ones. Test ads may be viewed and tapped

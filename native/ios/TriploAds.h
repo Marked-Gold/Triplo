@@ -12,7 +12,15 @@ NS_ASSUME_NONNULL_BEGIN
  * headers to be present.
  *
  * All methods are safe to call from any thread; UI work is dispatched to the main thread.
+ *
+ * The `visibility("default")` attribute is load-bearing: Xcode's default build setting
+ * `GCC_SYMBOLS_PRIVATE_EXTERN = YES` hides every Obj-C class symbol from the binary's export
+ * table, so the `_OBJC_CLASS_$_TriploAds` referenced by GameMain.framework via
+ * `-undefined dynamic_lookup` is invisible to dyld at launch and crashes the app with
+ * `symbol not found in flat namespace`. Marking the @interface forces the class symbol into the
+ * export table so the flat-namespace lookup resolves.
  */
+__attribute__((visibility("default")))
 @interface TriploAds : NSObject
 
 /**

@@ -7,8 +7,11 @@ import triploads.TriploAds
  * native/ios/TriploAds.{h,m} (exposed to Kotlin via the GoogleMobileAdsBridge cinterop). The
  * bridge also drives the UMP consent flow and the App Tracking Transparency prompt.
  */
-/** Production AdMob interstitial ad unit for the iOS app. */
-private const val INTERSTITIAL_AD_UNIT = "ca-app-pub-7742910323184344/7698900922"
+/**
+ * iOS AdMob interstitial ad unit. Chosen at build time by the `useTestAdIds` flag in
+ * build.gradle.kts and exposed through the generated AdConfig object.
+ */
+private val INTERSTITIAL_AD_UNIT = AdConfig.IOS_INTERSTITIAL_AD_UNIT
 
 actual fun Views.installPlatformAds() {
     // The bridge runs UMP consent → ATT prompt → MobileAds.start. Until the completion block

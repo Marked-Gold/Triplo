@@ -7,6 +7,40 @@ plugins {
     alias(libs.plugins.korge)
 }
 
+// =====================================================================================
+// AdMob test-mode toggle.
+// -------------------------------------------------------------------------------------
+// Flip `useTestAdIds` to `true` to swap in Google's universal test ad-unit IDs (which
+// always serve a "Test Ad" placeholder) for BOTH iOS and Android. This is the only way
+// to verify the ad-show flow before AdMob has approved the publisher account — production
+// ad units silently fail with `Account not approved yet` until Google's review completes.
+//
+// MUST be `false` for any Play Store / App Store upload — shipping with test IDs is an
+// AdMob policy violation and bricks future ad serving. A loud warning is printed on every
+// gradle run while this is `true` so it can't slip through unnoticed.
+// =====================================================================================
+val useTestAdIds = false
+
+// Google's universal test ad-unit IDs (https://developers.google.com/admob/ios/test-ads,
+// https://developers.google.com/admob/android/test-ads). Production IDs are the AllMeat Games
+// publisher's actual app/ad-unit IDs from the AdMob console.
+val iosAdMobAppId = if (useTestAdIds) "ca-app-pub-3940256099942544~1458002511"
+                    else "ca-app-pub-7742910323184344~4136123498"
+val iosInterstitialAdUnit = if (useTestAdIds) "ca-app-pub-3940256099942544/4411468910"
+                            else "ca-app-pub-7742910323184344/7698900922"
+val androidAdMobAppId = if (useTestAdIds) "ca-app-pub-3940256099942544~3347511713"
+                       else "ca-app-pub-7742910323184344~4789526938"
+val androidInterstitialAdUnit = if (useTestAdIds) "ca-app-pub-3940256099942544/1033173712"
+                                else "ca-app-pub-7742910323184344/7551421648"
+
+if (useTestAdIds) {
+    logger.lifecycle("============================================================")
+    logger.lifecycle("WARNING: useTestAdIds = true — building with AdMob TEST IDs.")
+    logger.lifecycle("         DO NOT upload this build to Play Store / App Store.")
+    logger.lifecycle("         Flip useTestAdIds = false in build.gradle.kts to ship.")
+    logger.lifecycle("============================================================")
+}
+
 korge {
     id = "com.allmeatgames.triplo"
     name = "Triplo"
@@ -40,10 +74,11 @@ korge {
     androidPermission("android.permission.INTERNET")
     // Lets the game play haptic feedback through the system Vibrator (see src@android/HapticsAndroid.kt).
     androidPermission("android.permission.VIBRATE")
-    // AdMob application id for the production Android app.
+    // AdMob application id for the Android app. Switches between production and test IDs
+    // based on the `useTestAdIds` flag near the top of this file.
     androidManifestApplicationChunk(
         "<meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" " +
-            "android:value=\"ca-app-pub-7742910323184344~4789526938\" />"
+            "android:value=\"$androidAdMobAppId\" />"
     )
 }
 
@@ -64,8 +99,15 @@ dependencies {
 // Building any iOS target requires a full Xcode install.
 // =====================================================================================
 
-// Production AdMob app id for the iOS app (AllMeat Games publisher).
-val iosAdMobAppId = "ca-app-pub-7742910323184344~4136123498"
+// iosAdMobAppId is declared above alongside the `useTestAdIds` toggle.
+
+// iOS App Store build/version. KorGE writes "1.0" / "1" into the generated Info.plist regardless
+// of `korge.version`, so we re-stamp these in `patchIosInfoPlist`. App Store Connect requires a
+// strictly higher CFBundleVersion than the previous *uploaded* build (not just the previous
+// released build). Last upload was 1.0 (2), which was rejected for crash-on-launch; bump on every
+// new upload.
+val iosShortVersion = "1.0.4"
+val iosBuildNumber = "3"
 val googleMobileAdsSpmUrl = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git"
 val googleMobileAdsSpmVersion = "13.4.0"
 val googleUmpSpmUrl = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git"
@@ -110,6 +152,37 @@ tasks.matching { it.name == "compileDebugKotlinAndroid" || it.name == "compileRe
             .compilerOptions.freeCompilerArgs.add("-Xskip-metadata-version-check")
     }
 
+// Generated commonMain source carrying the chosen AdMob ad-unit IDs. Both AdsIos.kt and
+// AdsAndroid.kt read AdConfig at runtime so flipping `useTestAdIds` above rebuilds them with the
+// matching unit ids. The task's input properties guarantee Gradle re-runs it (and the downstream
+// Kotlin compile) whenever the flag or the ids change.
+val adConfigOutDir = layout.buildDirectory.dir("generated/ad-config/kotlin")
+val generateAdConfig = tasks.register("generateAdConfig") {
+    inputs.property("useTestAdIds", useTestAdIds)
+    inputs.property("iosInterstitialAdUnit", iosInterstitialAdUnit)
+    inputs.property("androidInterstitialAdUnit", androidInterstitialAdUnit)
+    outputs.dir(adConfigOutDir)
+    doLast {
+        val outDir = adConfigOutDir.get().asFile
+        outDir.mkdirs()
+        File(outDir, "AdConfig.kt").writeText(
+            """
+            // GENERATED by build.gradle.kts (generateAdConfig task). Do not edit by hand —
+            // flip the `useTestAdIds` flag in build.gradle.kts and rebuild.
+            object AdConfig {
+                const val USE_TEST_ADS = $useTestAdIds
+                const val IOS_INTERSTITIAL_AD_UNIT = "$iosInterstitialAdUnit"
+                const val ANDROID_INTERSTITIAL_AD_UNIT = "$androidInterstitialAdUnit"
+            }
+            """.trimIndent()
+        )
+    }
+}
+
+kotlin.sourceSets.named("commonMain") {
+    kotlin.srcDir(generateAdConfig)
+}
+
 /** Inserts the AdMob / ATT / SKAdNetwork keys KorGE's generated iOS Info.plist is missing, and
  *  rewrites the orientation arrays to portrait-only (KorGE writes all three/four orientations
  *  regardless of `orientation = Orientation.PORTRAIT`). */
@@ -142,6 +215,20 @@ fun patchIosInfoPlist(plist: File) {
             append("\t</array>\n")
         }
         text = text.replaceFirst("</dict>", additions + "</dict>")
+    }
+
+    // Re-stamp the build / short version from the constants above. KorGE writes hardcoded
+    // "1.0" / "1" into the plist regardless of `korge.version`; without this patch every iOS
+    // upload would ship with the same CFBundleVersion and App Store Connect would reject it.
+    text = text.replace(
+        Regex("<key>CFBundleShortVersionString</key>\\s*<string>[^<]*</string>")
+    ) {
+        "<key>CFBundleShortVersionString</key>\n\t<string>$iosShortVersion</string>"
+    }
+    text = text.replace(
+        Regex("<key>CFBundleVersion</key>\\s*<string>[^<]*</string>")
+    ) {
+        "<key>CFBundleVersion</key>\n\t<string>$iosBuildNumber</string>"
     }
 
     // Lock both iPhone and iPad to portrait. Re-running idempotently because the right-hand side
@@ -193,6 +280,29 @@ fun patchIosProjectYml(projectYml: File) {
                 val indent = line.substringBefore("- app")
                 out.append(indent).append("- ../../../native/ios\n")
             }
+            // Post-link sanity check on the archived target. Apple rejected build 1.0 (2) for
+            // crash-on-launch with `symbol not found in flat namespace '_OBJC_CLASS_$_TriploAds'`
+            // — the GameMain framework references TriploAds via `-undefined dynamic_lookup`, but
+            // Xcode's incremental cache produced a main binary that did not contain TriploAds.m's
+            // compiled output. Fail the build loudly if that ever happens again instead of
+            // silently shipping a guaranteed-crash binary.
+            Regex("^  app-Arm64-Release:\\s*$").matches(line) -> {
+                out.append("    postBuildScripts:\n")
+                out.append("      - name: Verify TriploAds linked\n")
+                out.append("        basedOnDependencyAnalysis: false\n")
+                out.append("        script: |\n")
+                out.append("          BIN=\"\$TARGET_BUILD_DIR/\$EXECUTABLE_PATH\"\n")
+                // Match capital-S in `nm` output: the class must be EXPORTED (visible in the
+                // dynamic export table), not merely present as a private_extern symbol —
+                // otherwise dyld's flat-namespace lookup for the symbol from GameMain.framework
+                // still fails. The visibility("default") attribute on @interface TriploAds
+                // forces this; the check guards against future regressions of either the
+                // attribute or the GCC_SYMBOLS_PRIVATE_EXTERN setting.
+                out.append("          if ! nm \"\$BIN\" | grep -q 'S _OBJC_CLASS_\$_TriploAds'; then\n")
+                out.append("            echo \"error: _OBJC_CLASS_\$_TriploAds is not an exported symbol in \$BIN — either TriploAds.m did not link, or the class is hidden (check __attribute__((visibility(\\\"default\\\"))) on @interface TriploAds). The app will crash on launch with 'symbol not found in flat namespace'.\" >&2\n")
+                out.append("            exit 1\n")
+                out.append("          fi\n")
+            }
             // Link the GoogleMobileAds and UMP packages into every app target.
             line.trimStart().startsWith("- framework:") -> {
                 val indent = line.substringBefore("- framework:")
@@ -208,15 +318,17 @@ fun patchIosProjectYml(projectYml: File) {
             currentTarget == "app-Arm64-Release" && line.trim().startsWith("DEVELOPMENT_TEAM:") -> {
                 val indent = line.substringBefore("DEVELOPMENT_TEAM:")
                 out.append(indent).append("PRODUCT_BUNDLE_IDENTIFIER: com.allmeatgames.triplo\n")
+                // Force the archived binary to iPhone-only (TARGETED_DEVICE_FAMILY = 1). xcodegen
+                // bakes "1,2" into every target's XCBuildConfiguration regardless of the
+                // project-level setting below, so the project-level patch alone is overridden.
+                // Setting it on the target wins. iPhone-only avoids App Store Connect demanding
+                // 13" iPad screenshots and pulling the app into iPad-specific review scrutiny
+                // (Stage Manager, Split View, iPad orientation handling); iPad users still get
+                // the app via iPhone compatibility mode.
+                out.append(indent).append("TARGETED_DEVICE_FAMILY: \"1\"\n")
             }
-            // Force the binary to iPhone-only (TARGETED_DEVICE_FAMILY = 1). KorGE's xcodegen
-            // template defaults to Universal (1,2) which makes App Store Connect demand 13"
-            // iPad screenshots and pull the app into iPad review scrutiny (Stage Manager,
-            // Split View, iPad-specific orientation handling). The game is designed for
-            // one-handed iPhone play; iPad users still get the app via iPhone compatibility
-            // mode. Applied at the project level (currentTarget is null before any target
-            // block has been entered, i.e. when processing the top-level `settings:` block),
-            // so all 6 variants inherit it.
+            // Project-level TARGETED_DEVICE_FAMILY = 1 (kept as belt-and-suspenders; the target
+            // override above is the load-bearing one for the archived target).
             currentTarget == null && line.trim().startsWith("DEVELOPMENT_TEAM:") -> {
                 val indent = line.substringBefore("DEVELOPMENT_TEAM:")
                 out.append(indent).append("TARGETED_DEVICE_FAMILY: \"1\"\n")
