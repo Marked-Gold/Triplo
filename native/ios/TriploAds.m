@@ -17,6 +17,8 @@
  * changed in v12.
  */
 @interface TriploAds () <GADFullScreenContentDelegate>
+/** Runs `block` on the main thread once the app reaches the active foreground state. */
++ (void)whenAppActive:(void (^)(void))block;
 @end
 
 @implementation TriploAds {
@@ -73,13 +75,52 @@
 
     if (@available(iOS 14, *)) {
         if (ATTrackingManager.trackingAuthorizationStatus == ATTrackingManagerAuthorizationStatusNotDetermined) {
-            [ATTrackingManager requestTrackingAuthorizationWithCompletionHandler:^(ATTrackingManagerAuthorizationStatus status) {
-                dispatch_async(dispatch_get_main_queue(), proceed);
+            // The ATT dialog only appears while the app is in the *active* state. We get here
+            // straight out of the UMP consent step, which runs during launch (app often still
+            // inactive) and, when a consent form is shown, flips the app inactive while the form
+            // is on screen — a privacy prompt is presented out-of-process. Requesting ATT in that
+            // window makes iOS silently drop the prompt (the completion handler fires but no dialog
+            // is shown), which is exactly why App Review on iPadOS 26.5 could not find the request.
+            // Defer to the active state before asking. See Apple's requestTrackingAuthorization docs.
+            [TriploAds whenAppActive:^{
+                [ATTrackingManager requestTrackingAuthorizationWithCompletionHandler:^(ATTrackingManagerAuthorizationStatus status) {
+                    dispatch_async(dispatch_get_main_queue(), proceed);
+                }];
             }];
             return;
         }
     }
     proceed();
+}
+
+/**
+ * Runs `block` on the main thread once the app is in the active foreground state. If the app is
+ * already active we still defer by a short delay: when this is called right after a system/consent
+ * prompt is dismissed, the app momentarily flips inactive→active, and presenting the ATT dialog
+ * during that transition gets it suppressed or stacked behind the dismissing prompt.
+ */
++ (void)whenAppActive:(void (^)(void))block {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        void (^runSoon)(void) = ^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), block);
+        };
+        if (UIApplication.sharedApplication.applicationState == UIApplicationStateActive) {
+            runSoon();
+            return;
+        }
+        __block id observer = nil;
+        observer = [[NSNotificationCenter defaultCenter]
+            addObserverForName:UIApplicationDidBecomeActiveNotification
+                        object:nil
+                         queue:[NSOperationQueue mainQueue]
+                    usingBlock:^(NSNotification *_Nonnull note) {
+            if (observer == nil) return;
+            [[NSNotificationCenter defaultCenter] removeObserver:observer];
+            observer = nil;
+            runSoon();
+        }];
+    });
 }
 
 #pragma mark - Interstitial loading & presentation

@@ -104,10 +104,12 @@ dependencies {
 // iOS App Store build/version. KorGE writes "1.0" / "1" into the generated Info.plist regardless
 // of `korge.version`, so we re-stamp these in `patchIosInfoPlist`. App Store Connect requires a
 // strictly higher CFBundleVersion than the previous *uploaded* build (not just the previous
-// released build). Last upload was 1.0 (2), which was rejected for crash-on-launch; bump on every
-// new upload.
-val iosShortVersion = "1.0.4"
-val iosBuildNumber = "3"
+// released build). Build 1.0 (4) was rejected (guideline 2.1) because App Review on iPadOS 26.5
+// could not find the App Tracking Transparency prompt — it was being requested while the app was
+// not yet active, so iOS silently dropped it. Fixed in TriploAds.m by deferring the ATT request
+// to the active state. Bump on every new upload.
+val iosShortVersion = "1.0.5"
+val iosBuildNumber = "5"
 val googleMobileAdsSpmUrl = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git"
 val googleMobileAdsSpmVersion = "13.4.0"
 val googleUmpSpmUrl = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git"
@@ -326,9 +328,32 @@ fun patchIosProjectYml(projectYml: File) {
                 // (Stage Manager, Split View, iPad orientation handling); iPad users still get
                 // the app via iPhone compatibility mode.
                 out.append(indent).append("TARGETED_DEVICE_FAMILY: \"1\"\n")
+                // STRIP_STYLE = non-global is load-bearing for the App Store build. xcodegen
+                // defaults to "all" for app targets, which causes `strip` during the archive's
+                // Install phase to wipe the entire dyld export trie (3000+ entries → just
+                // `__mh_execute_header`). That removes _OBJC_CLASS_$_TriploAds from the export
+                // table, and GameMain.framework's `-undefined dynamic_lookup` reference fails at
+                // launch with the exact same `symbol not found in flat namespace` crash that
+                // got builds 2 and 3 rejected. "non-global" preserves global/exported symbols
+                // through strip. Note: the postBuildScripts verify check below runs BEFORE
+                // strip (Xcode runs strip during Install/Archive finalization, after all build
+                // phases), so the verify can't catch this regression — STRIP_STYLE on the
+                // archived target is the only durable defense.
+                out.append(indent).append("STRIP_STYLE: non-global\n")
+            }
+            // Every OTHER app target (debug / simulator / x64) also gets iPhone-only. xcodegen
+            // bakes "1,2" into each target's XCBuildConfiguration, overriding the project-level
+            // setting below, so without this the on-device debug build installs as a universal
+            // (iPad-native) app and renders full iPad size instead of iPhone-compat. This branch
+            // sits after the Release branch above, so `when` (first-match-wins) only reaches it for
+            // non-Release app targets — which is why the bundle-ID/strip patches stay Release-only.
+            currentTarget != null && currentTarget!!.startsWith("app-") &&
+                line.trim().startsWith("DEVELOPMENT_TEAM:") -> {
+                val indent = line.substringBefore("DEVELOPMENT_TEAM:")
+                out.append(indent).append("TARGETED_DEVICE_FAMILY: \"1\"\n")
             }
             // Project-level TARGETED_DEVICE_FAMILY = 1 (kept as belt-and-suspenders; the target
-            // override above is the load-bearing one for the archived target).
+            // overrides above are the load-bearing ones).
             currentTarget == null && line.trim().startsWith("DEVELOPMENT_TEAM:") -> {
                 val indent = line.substringBefore("DEVELOPMENT_TEAM:")
                 out.append(indent).append("TARGETED_DEVICE_FAMILY: \"1\"\n")
